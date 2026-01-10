@@ -20,7 +20,7 @@ export default function ProfilePage() {
             <User className="w-8 h-8 sm:w-10 sm:h-10" />
           </div>
           <div>
-            <h3 className="text-xl sm:text-2xl font-bold">David Wijaya</h3>
+            <h3 className="text-xl sm:text-2xl font-bold">Tubagus Ahmad</h3>
             <p className="text-blue-100">Member ID: KOP-2024-001234</p>
           </div>
         </div>
@@ -58,7 +58,7 @@ export default function ProfilePage() {
             <label className="block text-sm font-semibold text-slate-700 mb-2">Nama Lengkap</label>
             <input
               type="text"
-              defaultValue="David Wijaya"
+              defaultValue="Tubagus Ahmad"
               disabled={!isEditing}
               className="w-full px-4 py-2 border border-slate-200 rounded-lg disabled:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary"
             />
@@ -71,7 +71,7 @@ export default function ProfilePage() {
             </label>
             <input
               type="email"
-              defaultValue="david.wijaya@email.com"
+              defaultValue="tubagus.ahmad@email.com"
               disabled={!isEditing}
               className="w-full px-4 py-2 border border-slate-200 rounded-lg disabled:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary"
             />
@@ -96,7 +96,7 @@ export default function ProfilePage() {
               Alamat
             </label>
             <textarea
-              defaultValue="Jl. Merdeka No. 123, Jakarta Selatan 12345"
+              defaultValue="Bumi Jaya Indah, Purwakarta Jawa Barat 41118"
               disabled={!isEditing}
               className="w-full px-4 py-2 border border-slate-200 rounded-lg disabled:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary"
               rows={3}
