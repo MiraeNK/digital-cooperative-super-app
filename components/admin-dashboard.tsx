@@ -7,6 +7,7 @@ import DigitalMarketingChart from "./admin/digital-marketing-chart"
 import TransactionsTable from "./admin/transactions-table"
 import InventoryManagement from "./admin/inventory-management"
 import MemberDataGrid from "./admin/member-data-grid"
+import KYCVerification from "./admin/kyc-verification"
 
 export function AdminDashboard() {
   const [activePage, setActivePage] = useState("overview")
@@ -180,6 +181,8 @@ export function AdminDashboard() {
               </div>
             </div>
           )}
+
+          {activePage === "kyc" && <KYCVerification />}
         </div>
       </div>
     </div>

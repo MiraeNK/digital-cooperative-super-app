@@ -12,12 +12,14 @@ import TransactionsPage from "./member/transactions-page"
 import ProfilePage from "./member/profile-page"
 import CommunityPage from "./member/community-page"
 import MessagingPage from "./member/messaging-page"
+import MerchantCenter from "./member/merchant-center"
 
 export function MemberApp() {
   const [activeTab, setActiveTab] = useState("home")
   const [balanceVisible, setBalanceVisible] = useState(true)
   const [selectedChat, setSelectedChat] = useState<string | null>(null)
   const [navigationHistory, setNavigationHistory] = useState<string[]>(["home"])
+  const [isSeller] = useState(true)
 
   const handleTabChange = (tab: string) => {
     setNavigationHistory([...navigationHistory, tab])
@@ -32,7 +34,7 @@ export function MemberApp() {
     }
   }
 
-  const showBackButton = activeTab === "messaging"
+  const isMessagingOpen = activeTab === "messaging" || selectedChat !== null
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex flex-col lg:flex-row">
@@ -54,6 +56,17 @@ export function MemberApp() {
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto p-4 space-y-2">
           <BottomNavigation activeTab={activeTab} onTabChange={handleTabChange} />
+          {isSeller && (
+            <button
+              onClick={() => handleTabChange("merchant")}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition ${
+                activeTab === "merchant" ? "bg-primary text-white" : "text-slate-700 hover:bg-slate-100"
+              }`}
+            >
+              <span className="text-lg">🏪</span>
+              <span className="font-semibold text-sm">Toko Saya</span>
+            </button>
+          )}
         </nav>
 
         {/* Footer */}
@@ -67,7 +80,7 @@ export function MemberApp() {
       {/* Main Content Area */}
       <div className="flex-1 lg:ml-72 flex flex-col">
         {/* Desktop Header - Hide for messaging page */}
-        {!showBackButton && (
+        {!isMessagingOpen && (
           <div className="hidden lg:block bg-white border-b border-slate-200 sticky top-20 z-30">
             <div className="px-8 py-6">
               <div className="flex items-center justify-between">
@@ -78,6 +91,7 @@ export function MemberApp() {
                     {activeTab === "transactions" && "Riwayat Transaksi"}
                     {activeTab === "community" && "Komunitas"}
                     {activeTab === "profile" && "Profil Saya"}
+                    {activeTab === "merchant" && "Pusat Penjualan"}
                   </h1>
                 </div>
               </div>
@@ -87,7 +101,7 @@ export function MemberApp() {
 
         {/* Page Content */}
         <div className="flex-1 overflow-y-auto">
-          {activeTab === "messaging" ? (
+          {isMessagingOpen ? (
             <MessagingPage selectedChatId={selectedChat} onBack={handleBack} />
           ) : (
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -134,6 +148,8 @@ export function MemberApp() {
               )}
 
               {activeTab === "profile" && <ProfilePage />}
+
+              {activeTab === "merchant" && <MerchantCenter />}
             </div>
           )}
         </div>

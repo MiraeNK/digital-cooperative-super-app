@@ -1,6 +1,6 @@
 "use client"
 
-import { BarChart3, TrendingUp, Package, Users, Settings } from "lucide-react"
+import { BarChart3, TrendingUp, Package, Users, Settings, CheckCircle } from "lucide-react"
 import { useState } from "react"
 
 interface SidebarProps {
@@ -10,6 +10,7 @@ interface SidebarProps {
 
 const pages = [
   { id: "overview", label: "Overview", icon: BarChart3 },
+  { id: "kyc", label: "Member Approval (KYC)", icon: CheckCircle },
   { id: "marketing", label: "Digital Marketing", icon: TrendingUp },
   { id: "inventory", label: "Inventory", icon: Package },
   { id: "members", label: "Data Anggota", icon: Users },
@@ -35,7 +36,7 @@ export default function Sidebar({ activePage, onPageChange }: SidebarProps) {
       <aside
         className={`lg:w-64 bg-white rounded-xl shadow-sm border border-slate-200 p-6 ${isOpen ? "block" : "hidden lg:block"} lg:h-fit lg:sticky lg:top-28`}
       >
-        <h2 className="text-lg font-bold text-slate-900 mb-4">Menu</h2>
+        <h2 className="text-lg font-bold text-slate-900 mb-4">Menu Admin</h2>
         <nav className="space-y-2">
           {pages.map((page) => {
             const Icon = page.icon
@@ -52,7 +53,10 @@ export default function Sidebar({ activePage, onPageChange }: SidebarProps) {
                 }`}
               >
                 <Icon className="w-5 h-5" />
-                <span className="font-semibold">{page.label}</span>
+                <span className="font-semibold text-sm">{page.label}</span>
+                {page.id === "kyc" && isActive && (
+                  <span className="ml-auto text-xs bg-yellow-300 text-slate-900 font-bold px-2 py-1 rounded">2</span>
+                )}
               </button>
             )
           })}

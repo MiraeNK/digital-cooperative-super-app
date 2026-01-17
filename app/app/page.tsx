@@ -1,42 +1,76 @@
 "use client"
 
-import { useState } from "react"
-import { Monitor, Smartphone } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Monitor, Smartphone, LogOut } from "lucide-react"
 import { MemberApp } from "@/components/member-app"
 import { AdminDashboard } from "@/components/admin-dashboard"
+import { useRouter } from "next/navigation"
 
 export default function AppPage() {
-  const [viewMode, setViewMode] = useState<"member" | "admin">("member")
+  const router = useRouter()
+  const [role, setRole] = useState<"member" | "admin">("member")
+  const [isClient, setIsClient] = useState(false)
+
+  useEffect(() => {
+    setIsClient(true)
+    const params = new URLSearchParams(window.location.search)
+    const roleParam = params.get("role")
+    if (roleParam === "admin") {
+      setRole("admin")
+    }
+  }, [])
+
+  if (!isClient) return null
+
+  const handleLogout = () => {
+    router.push("/auth")
+  }
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Mode Switcher */}
+      {/* Header with Mode Switcher */}
       <div className="sticky top-0 z-50 bg-background border-b border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-primary">Koperasi 4.0</h1>
-            <div className="flex items-center gap-2 bg-muted p-1 rounded-full">
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-primary">Koperasi 4.0</h1>
+              <span className="text-sm px-3 py-1 bg-primary/10 text-primary rounded-full font-semibold">
+                {role === "member" ? "Member" : "Admin"}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-4">
+              {/* Mode Switcher */}
+              <div className="hidden sm:flex items-center gap-2 bg-muted p-1 rounded-full">
+                <button
+                  onClick={() => setRole("member")}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-full font-semibold transition ${
+                    role === "member"
+                      ? "bg-white text-primary shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Smartphone size={18} />
+                  <span className="hidden sm:inline">Member</span>
+                </button>
+                <button
+                  onClick={() => setRole("admin")}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-full font-semibold transition ${
+                    role === "admin" ? "bg-white text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Monitor size={18} />
+                  <span className="hidden sm:inline">Admin</span>
+                </button>
+              </div>
+
+              {/* Logout Button */}
               <button
-                onClick={() => setViewMode("member")}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full font-semibold transition ${
-                  viewMode === "member"
-                    ? "bg-white text-primary shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
+                onClick={handleLogout}
+                className="flex items-center gap-2 px-3 sm:px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition font-semibold text-sm"
               >
-                <Smartphone size={18} />
-                <span className="hidden sm:inline">Member App</span>
-              </button>
-              <button
-                onClick={() => setViewMode("admin")}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full font-semibold transition ${
-                  viewMode === "admin"
-                    ? "bg-white text-primary shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Monitor size={18} />
-                <span className="hidden sm:inline">Admin Dashboard</span>
+                <LogOut size={18} />
+                <span className="hidden sm:inline">Logout</span>
               </button>
             </div>
           </div>
@@ -44,7 +78,7 @@ export default function AppPage() {
       </div>
 
       {/* View Content */}
-      <div className="min-h-[calc(100vh-80px)]">{viewMode === "member" ? <MemberApp /> : <AdminDashboard />}</div>
+      <div className="min-h-[calc(100vh-80px)]">{role === "member" ? <MemberApp /> : <AdminDashboard />}</div>
     </div>
   )
 }
