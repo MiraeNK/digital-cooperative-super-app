@@ -1,14 +1,15 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Monitor, Smartphone, LogOut } from "lucide-react"
+import { Monitor, Smartphone, LogOut, PenTool } from "lucide-react"
 import { MemberApp } from "@/components/member-app"
 import { AdminDashboard } from "@/components/admin-dashboard"
+import { WriterDashboard } from "@/components/writer-dashboard"
 import { useRouter } from "next/navigation"
 
 export default function AppPage() {
   const router = useRouter()
-  const [role, setRole] = useState<"member" | "admin">("member")
+  const [role, setRole] = useState<"member" | "admin" | "writer">("member")
   const [isClient, setIsClient] = useState(false)
 
   useEffect(() => {
@@ -17,6 +18,8 @@ export default function AppPage() {
     const roleParam = params.get("role")
     if (roleParam === "admin") {
       setRole("admin")
+    } else if (roleParam === "writer") {
+      setRole("writer")
     }
   }, [])
 
@@ -35,7 +38,7 @@ export default function AppPage() {
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-primary">Koperasi 4.0</h1>
               <span className="text-sm px-3 py-1 bg-primary/10 text-primary rounded-full font-semibold">
-                {role === "member" ? "Member" : "Admin"}
+                {role === "member" ? "Member" : role === "admin" ? "Admin" : "Writer"}
               </span>
             </div>
 
@@ -62,6 +65,15 @@ export default function AppPage() {
                   <Monitor size={18} />
                   <span className="hidden sm:inline">Admin</span>
                 </button>
+                <button
+                  onClick={() => setRole("writer")}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-full font-semibold transition ${
+                    role === "writer" ? "bg-white text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <PenTool size={18} />
+                  <span className="hidden sm:inline">Writer</span>
+                </button>
               </div>
 
               {/* Logout Button */}
@@ -78,7 +90,9 @@ export default function AppPage() {
       </div>
 
       {/* View Content */}
-      <div className="min-h-[calc(100vh-80px)]">{role === "member" ? <MemberApp /> : <AdminDashboard />}</div>
+      <div className="min-h-[calc(100vh-80px)]">
+        {role === "member" ? <MemberApp /> : role === "admin" ? <AdminDashboard /> : <WriterDashboard />}
+      </div>
     </div>
   )
 }

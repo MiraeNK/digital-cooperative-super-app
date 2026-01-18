@@ -13,6 +13,21 @@ import ProfilePage from "./member/profile-page"
 import CommunityPage from "./member/community-page"
 import MessagingPage from "./member/messaging-page"
 import MerchantCenter from "./member/merchant-center"
+import ArticlesSection from "./member/articles-section"
+import ArticleReader from "./member/article-reader"
+import PharmacySection from "./member/pharmacy-section"
+import FloatingMessageButton from "./member/floating-message-button"
+import type { FC } from "react"
+
+interface Article {
+  id: string
+  title: string
+  category: string
+  author: string
+  views: number
+  cover: string
+  excerpt: string
+}
 
 export function MemberApp() {
   const [activeTab, setActiveTab] = useState("home")
@@ -21,6 +36,7 @@ export function MemberApp() {
   const [navigationHistory, setNavigationHistory] = useState<string[]>(["home"])
   const [isSeller] = useState(true)
   const [sidebarExpanded, setSidebarExpanded] = useState(true)
+  const [selectedArticle, setSelectedArticle] = useState<Article | null>(null)
 
   const handleTabChange = (tab: string) => {
     setNavigationHistory([...navigationHistory, tab])
@@ -140,6 +156,14 @@ export function MemberApp() {
                   </div>
 
                   <div>
+                    <ArticlesSection onArticleClick={setSelectedArticle} />
+                  </div>
+
+                  <div>
+                    <PharmacySection />
+                  </div>
+
+                  <div>
                     <LiveShoppingSection />
                   </div>
 
@@ -178,6 +202,29 @@ export function MemberApp() {
 
       {/* Spacer untuk mobile */}
       <div className="h-20 lg:hidden" />
+
+      {/* Article Reader Modal */}
+      {selectedArticle && (
+        <ArticleReader 
+          article={selectedArticle} 
+          onClose={() => setSelectedArticle(null)} 
+        />
+      )}
+
+      {/* Floating Message Button dengan handler chat navigation */}
+      {!isMessagingOpen && (
+        <FloatingMessageButton
+          onOpenFullChat={(chatId) => {
+            if (chatId === "all") {
+              handleTabChange("messaging")
+              setSelectedChat(null)
+            } else {
+              handleTabChange("messaging")
+              setSelectedChat(chatId)
+            }
+          }}
+        />
+      )}
     </div>
   )
 }

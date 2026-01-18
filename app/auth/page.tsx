@@ -197,6 +197,16 @@ export default function AuthPage() {
             >
               Login as Member
             </button>
+            <button
+              onClick={() => {
+                setEmail("writer@koperasi4.id")
+                setPassword("writer123")
+                window.location.href = "/app?role=writer"
+              }}
+              className="w-full py-2 border border-green-300 text-green-600 font-semibold rounded-lg hover:bg-green-50 transition text-sm"
+            >
+              Login as Writer
+            </button>
           </div>
 
           {/* Footer */}

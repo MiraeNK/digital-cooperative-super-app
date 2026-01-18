@@ -12,6 +12,7 @@ const allProducts = [
     image: "🍚",
     discount: 10,
     category: "Bahan Pokok",
+    type: "regular",
   },
   {
     id: 2,
@@ -21,8 +22,9 @@ const allProducts = [
     image: "🫒",
     discount: 15,
     category: "Bahan Pokok",
+    type: "regular",
   },
-  { id: 3, name: "Baju Batik Lokal", price: 75000, memberPrice: 62000, image: "👔", discount: 17, category: "Fashion" },
+  { id: 3, name: "Baju Batik Lokal", price: 75000, memberPrice: 62000, image: "👔", discount: 17, category: "Fashion", type: "regular" },
   {
     id: 4,
     name: "Kopi Arabika Asli",
@@ -31,6 +33,7 @@ const allProducts = [
     image: "☕",
     discount: 15,
     category: "Minuman",
+    type: "regular",
   },
   {
     id: 5,
@@ -40,6 +43,7 @@ const allProducts = [
     image: "🧂",
     discount: 19,
     category: "Bahan Pokok",
+    type: "regular",
   },
   {
     id: 6,
@@ -49,8 +53,9 @@ const allProducts = [
     image: "🥚",
     discount: 17,
     category: "Makanan Segar",
+    type: "regular",
   },
-  { id: 7, name: "Jeruk Lokal Segar", price: 32000, memberPrice: 27000, image: "🍊", discount: 16, category: "Buah" },
+  { id: 7, name: "Jeruk Lokal Segar", price: 32000, memberPrice: 27000, image: "🍊", discount: 16, category: "Buah", type: "regular" },
   {
     id: 8,
     name: "Tahu Goreng Spesial",
@@ -59,10 +64,67 @@ const allProducts = [
     image: "🟫",
     discount: 17,
     category: "Makanan",
+    type: "regular",
+  },
+  // Pharmacy/Apotek Products
+  {
+    id: 101,
+    name: "Vitamin C 500mg",
+    price: 35000,
+    memberPrice: 30000,
+    image: "💊",
+    discount: 14,
+    category: "Suplemen",
+    type: "pharmacy",
+    requiresPrescription: false,
+  },
+  {
+    id: 102,
+    name: "Parasetamol 500mg (10 Tab)",
+    price: 8500,
+    memberPrice: 7000,
+    image: "💉",
+    discount: 18,
+    category: "Obat",
+    type: "pharmacy",
+    requiresPrescription: false,
+  },
+  {
+    id: 103,
+    name: "Multivitamin Harian",
+    price: 65000,
+    memberPrice: 55000,
+    image: "🌿",
+    discount: 15,
+    category: "Suplemen",
+    type: "pharmacy",
+    requiresPrescription: false,
+  },
+  {
+    id: 104,
+    name: "Antacid Suspension",
+    price: 22000,
+    memberPrice: 18000,
+    image: "🥤",
+    discount: 18,
+    category: "Obat",
+    type: "pharmacy",
+    requiresPrescription: false,
+  },
+  {
+    id: 105,
+    name: "Masker Medis (50pcs)",
+    price: 45000,
+    memberPrice: 38000,
+    image: "😷",
+    discount: 16,
+    category: "Kesehatan",
+    type: "pharmacy",
+    requiresPrescription: false,
   },
 ]
 
-const categories = ["Semua", "Bahan Pokok", "Makanan Segar", "Fashion", "Minuman", "Buah", "Makanan"]
+const categories = ["Semua", "Bahan Pokok", "Makanan Segar", "Fashion", "Minuman", "Buah", "Makanan", "Obat", "Suplemen", "Kesehatan"]
 
 export default function ShopPage() {
   const [searchQuery, setSearchQuery] = useState("")
