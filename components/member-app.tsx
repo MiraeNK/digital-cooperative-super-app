@@ -20,6 +20,7 @@ export function MemberApp() {
   const [selectedChat, setSelectedChat] = useState<string | null>(null)
   const [navigationHistory, setNavigationHistory] = useState<string[]>(["home"])
   const [isSeller] = useState(true)
+  const [sidebarExpanded, setSidebarExpanded] = useState(true)
 
   const handleTabChange = (tab: string) => {
     setNavigationHistory([...navigationHistory, tab])
@@ -39,46 +40,61 @@ export function MemberApp() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex flex-col lg:flex-row">
       {/* Sidebar - Desktop Only */}
-      <div className="hidden lg:flex fixed left-0 top-20 bottom-0 w-72 bg-white border-r border-slate-200 flex-col z-40">
+      <div
+        className={`hidden lg:flex fixed left-0 top-20 bottom-0 bg-white border-r border-slate-200 flex-col z-40 transition-all duration-300 ${
+          sidebarExpanded ? "w-72" : "w-24"
+        }`}
+      >
         {/* Header */}
-        <div className="px-6 py-8 border-b border-slate-200">
+        <div className={`px-6 py-8 border-b border-slate-200 transition-all duration-300 ${!sidebarExpanded && "px-3"}`}>
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-blue-700 flex items-center justify-center text-white font-bold text-lg">
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-blue-700 flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
               T
             </div>
-            <div>
-              <p className="font-bold text-slate-900">Tubagus Ahmad</p>
-              <p className="text-sm text-slate-500">Member ID: KOP-001</p>
-            </div>
+            {sidebarExpanded && (
+              <div>
+                <p className="font-bold text-slate-900">Tubagus Ahmad</p>
+                <p className="text-sm text-slate-500">Member ID: KOP-001</p>
+              </div>
+            )}
           </div>
         </div>
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto p-4 space-y-2">
-          <BottomNavigation activeTab={activeTab} onTabChange={handleTabChange} />
+          <BottomNavigation activeTab={activeTab} onTabChange={handleTabChange} sidebarExpanded={sidebarExpanded} />
           {isSeller && (
             <button
               onClick={() => handleTabChange("merchant")}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition ${
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition justify-start ${
                 activeTab === "merchant" ? "bg-primary text-white" : "text-slate-700 hover:bg-slate-100"
               }`}
             >
-              <span className="text-lg">🏪</span>
-              <span className="font-semibold text-sm">Toko Saya</span>
+              <span className="text-lg flex-shrink-0">🏪</span>
+              {sidebarExpanded && <span className="font-semibold text-sm">Toko Saya</span>}
             </button>
           )}
         </nav>
 
         {/* Footer */}
-        <div className="p-4 border-t border-slate-200">
-          <button className="w-full px-4 py-2 text-slate-700 hover:bg-slate-100 rounded-lg transition text-sm font-semibold">
-            Logout
+        <div className="p-4 border-t border-slate-200 space-y-2">
+          <button
+            onClick={() => setSidebarExpanded(!sidebarExpanded)}
+            className="w-full flex items-center justify-center lg:justify-start gap-3 px-4 py-2 text-slate-700 hover:bg-slate-100 rounded-lg transition text-sm font-semibold"
+            title={sidebarExpanded ? "Collapse sidebar" : "Expand sidebar"}
+          >
+            <span className="text-lg flex-shrink-0">{sidebarExpanded ? "‹" : "›"}</span>
+            {sidebarExpanded && <span>Collapse</span>}
+          </button>
+          <button className="w-full flex items-center justify-center lg:justify-start gap-3 px-4 py-2 text-slate-700 hover:bg-slate-100 rounded-lg transition text-sm font-semibold">
+            <span className="text-lg flex-shrink-0">←</span>
+            {sidebarExpanded && <span>Logout</span>}
           </button>
         </div>
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 lg:ml-72 flex flex-col">
+      <div className={`flex-1 flex flex-col transition-all duration-300 ${sidebarExpanded ? "lg:ml-72" : "lg:ml-24"}`}>
         {/* Desktop Header - Hide for messaging page */}
         {!isMessagingOpen && (
           <div className="hidden lg:block bg-white border-b border-slate-200 sticky top-20 z-30">
