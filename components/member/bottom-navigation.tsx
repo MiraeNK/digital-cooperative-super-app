@@ -28,11 +28,11 @@ export default function BottomNavigation({ activeTab, onTabChange, sidebarExpand
             onClick={() => onTabChange(tab.id)}
             className={`flex lg:w-full flex-col lg:flex-row lg:items-center lg:gap-3 items-center justify-center lg:justify-start py-3 lg:px-4 lg:py-3 transition-colors rounded-lg ${
               isActive
-                ? "text-primary bg-blue-50 lg:bg-primary lg:text-white"
+                ? "text-white bg-primary lg:bg-primary lg:text-white shadow-sm"
                 : "text-slate-600 hover:text-slate-900 lg:text-slate-700 lg:hover:bg-slate-100"
             }`}
           >
-            <Icon className={`w-6 h-6 flex-shrink-0 ${isActive ? "fill-current" : ""}`} />
+            <Icon className={`w-6 h-6 flex-shrink-0 ${isActive ? "text-white" : "text-current"}`} />
             {(typeof window === "undefined" || window.innerWidth >= 1024) && sidebarExpanded ? (
               <span className="text-xs lg:text-sm font-semibold mt-1 lg:mt-0">{tab.label}</span>
             ) : (

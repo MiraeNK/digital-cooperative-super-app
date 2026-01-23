@@ -59,11 +59,11 @@ export function MemberApp() {
       
       {/* --- SIDEBAR --- */}
       <div
-        className={`hidden lg:flex fixed left-0 top-0 bottom-0 bg-white border-r border-slate-200 flex-col z-40 transition-all duration-300 ${
+        className={`hidden lg:flex fixed left-0 top-20 bottom-0 bg-white border-r border-slate-200 flex-col z-40 transition-all duration-300 ${
           sidebarExpanded ? "w-72" : "w-24"
         }`}
       >
-        <div className={`px-6 py-12 border-b border-slate-200 transition-all duration-300 ${!sidebarExpanded && "px-3"}`}>
+        <div className={`px-6 py-6 border-b border-slate-200 transition-all duration-300 ${!sidebarExpanded && "px-3"}`}>
           <div className="flex items-center gap-3 h-12">
             <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-blue-700 flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
               T
@@ -83,7 +83,7 @@ export function MemberApp() {
             <button
               onClick={() => handleTabChange("merchant")}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition justify-start ${
-                activeTab === "merchant" ? "bg-primary text-white" : "text-slate-700 hover:bg-slate-100"
+                activeTab === "merchant" ? "bg-primary text-white shadow-sm" : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
               }`}
             >
               <span className="text-lg flex-shrink-0">🏪</span>
@@ -95,12 +95,12 @@ export function MemberApp() {
         <div className="p-4 border-t border-slate-200 space-y-2">
           <button
             onClick={() => setSidebarExpanded(!sidebarExpanded)}
-            className="w-full flex items-center justify-center lg:justify-start gap-3 px-4 py-2 text-slate-700 hover:bg-slate-100 rounded-lg transition text-sm font-semibold"
+            className="w-full flex items-center justify-center lg:justify-start gap-3 px-4 py-2 text-slate-700 hover:bg-slate-100 hover:text-slate-900 rounded-lg transition text-sm font-semibold"
           >
             <span className="text-lg flex-shrink-0">{sidebarExpanded ? "‹" : "›"}</span>
             {sidebarExpanded && <span>Collapse</span>}
           </button>
-          <button className="w-full flex items-center justify-center lg:justify-start gap-3 px-4 py-2 text-slate-700 hover:bg-slate-100 rounded-lg transition text-sm font-semibold">
+          <button className="w-full flex items-center justify-center lg:justify-start gap-3 px-4 py-2 text-slate-700 hover:bg-slate-100 hover:text-slate-900 rounded-lg transition text-sm font-semibold">
             <span className="text-lg flex-shrink-0">←</span>
             {sidebarExpanded && <span>Logout</span>}
           </button>
@@ -110,25 +110,6 @@ export function MemberApp() {
       {/* --- MAIN CONTENT --- */}
       <div className={`flex-1 flex flex-col transition-all duration-300 ${sidebarExpanded ? "lg:ml-72" : "lg:ml-24"}`}>
         
-        {/* Desktop Header */}
-        {!isMessagingOpen && (
-          <div className="hidden lg:block bg-white border-b border-slate-200 sticky top-0 z-30">
-            <div className="px-8 py-12">
-              <div className="flex items-center justify-between h-12">
-                <h1 className="text-3xl font-bold text-slate-900">
-                  {activeTab === "home" && "Beranda"}
-                  {activeTab === "shop" && "Toko"}
-                  {activeTab === "transactions" && "Riwayat Transaksi"}
-                  {activeTab === "community" && "Komunitas"}
-                  {activeTab === "profile" && "Profil Saya"}
-                  {activeTab === "merchant" && "Pusat Penjualan"}
-                </h1>
-                <div className="flex items-center gap-4"></div>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Page Content */}
         <div className="flex-1 overflow-y-auto">
           {isMessagingOpen ? (

@@ -42,7 +42,7 @@ export default function LiveShoppingSection() {
                   <Eye className="w-4 h-4" />
                   <span>{stream.viewers.toLocaleString()} ditonton</span>
                 </div>
-                <button className="w-full bg-accent hover:bg-orange-600 text-white text-sm font-bold py-2 rounded-lg mt-3 transition active:scale-95">
+                <button className="w-full bg-red-500 hover:bg-red-600 text-white text-sm font-bold py-2 rounded-lg mt-3 transition active:scale-95">
                   Gabung
                 </button>
               </div>
