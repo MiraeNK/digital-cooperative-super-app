@@ -59,13 +59,12 @@ export function MemberApp() {
       
       {/* --- SIDEBAR --- */}
       <div
-        className={`hidden lg:flex fixed left-0 top-20 bottom-0 bg-white border-r border-slate-200 flex-col z-40 transition-all duration-300 ${
+        className={`hidden lg:flex fixed left-0 top-0 bottom-0 bg-white border-r border-slate-200 flex-col z-40 transition-all duration-300 ${
           sidebarExpanded ? "w-72" : "w-24"
         }`}
       >
-        {/* Header Sidebar: KEMBALI KE py-8 AGAR TIDAK TERLALU NAIK */}
-        <div className={`px-6 py-8 border-b border-slate-200 transition-all duration-300 ${!sidebarExpanded && "px-3"}`}>
-          <div className="flex items-center gap-3 h-12"> {/* h-12 wrapper */}
+        <div className={`px-6 py-12 border-b border-slate-200 transition-all duration-300 ${!sidebarExpanded && "px-3"}`}>
+          <div className="flex items-center gap-3 h-12">
             <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-blue-700 flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
               T
             </div>
@@ -78,7 +77,6 @@ export function MemberApp() {
           </div>
         </div>
 
-        {/* Navigation */}
         <nav className="flex-1 overflow-y-auto p-4 space-y-2">
           <BottomNavigation activeTab={activeTab} onTabChange={handleTabChange} sidebarExpanded={sidebarExpanded} />
           {isSeller && (
@@ -94,7 +92,6 @@ export function MemberApp() {
           )}
         </nav>
 
-        {/* Sidebar Footer */}
         <div className="p-4 border-t border-slate-200 space-y-2">
           <button
             onClick={() => setSidebarExpanded(!sidebarExpanded)}
@@ -115,10 +112,9 @@ export function MemberApp() {
         
         {/* Desktop Header */}
         {!isMessagingOpen && (
-          <div className="hidden lg:block bg-white border-b border-slate-200 sticky top-20 z-30">
-            {/* KEMBALI KE py-8 AGAR TIDAK TERLALU NAIK / MEPET ATAS */}
-            <div className="px-8 py-8">
-              <div className="flex items-center justify-between h-12"> {/* h-12 wrapper agar sejajar vertikal dengan avatar sidebar */}
+          <div className="hidden lg:block bg-white border-b border-slate-200 sticky top-0 z-30">
+            <div className="px-8 py-12">
+              <div className="flex items-center justify-between h-12">
                 <h1 className="text-3xl font-bold text-slate-900">
                   {activeTab === "home" && "Beranda"}
                   {activeTab === "shop" && "Toko"}
@@ -127,10 +123,7 @@ export function MemberApp() {
                   {activeTab === "profile" && "Profil Saya"}
                   {activeTab === "merchant" && "Pusat Penjualan"}
                 </h1>
-                
-                {/* Header Actions Placeholder */}
-                <div className="flex items-center gap-4">
-                </div>
+                <div className="flex items-center gap-4"></div>
               </div>
             </div>
           </div>
@@ -141,7 +134,7 @@ export function MemberApp() {
           {isMessagingOpen ? (
             <MessagingPage selectedChatId={selectedChat} onBack={handleBack} />
           ) : (
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
               {activeTab === "home" && (
                 <div className="space-y-8">
                   <div className="max-w-md">
@@ -155,19 +148,23 @@ export function MemberApp() {
                     <ActionButtons />
                   </div>
 
-                  <div>
-                    <HealthServiceSection />
-                  </div>
-
+                  {/* UPDATE POSISI: PPOB (Layanan Cepat) Naik ke atas */}
                   <div>
                     <h3 className="text-xl font-bold text-slate-900 mb-6">Layanan Cepat</h3>
                     <PPOBGrid />
                   </div>
 
+                  {/* UPDATE POSISI: Berita (Articles) */}
                   <div>
                     <ArticlesSection onArticleClick={setSelectedArticle} />
                   </div>
 
+                  {/* UPDATE POSISI: Health Service Section PINDAH KE SINI (Di bawah Berita) */}
+                  <div>
+                    <HealthServiceSection />
+                  </div>
+
+                  {/* Pharmacy Section mengikuti Layanan Kesehatan */}
                   <div>
                     <PharmacySection />
                   </div>
