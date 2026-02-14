@@ -1,6 +1,14 @@
 "use client"
 
 import { useState } from "react"
+import { useAuth } from "@/components/auth-provider" // 1. IMPORT HOOK AUTH
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar" // 2. IMPORT UI AVATAR
+import { LogOut } from "lucide-react" // Import icon tambahan jika perlu
+import { signOut } from "firebase/auth"
+import { auth } from "@/lib/firebase"
+import { useRouter } from "next/navigation"
+
+// Import Components Halaman
 import BalanceCard from "./member/balance-card"
 import ActionButtons from "./member/action-buttons"
 import PPOBGrid from "./member/ppob-grid"
@@ -14,6 +22,7 @@ import CommunityPage from "./member/community-page"
 import MessagingPage from "./member/messaging-page"
 import MerchantCenter from "./member/merchant-center"
 import ArticlesSection from "./member/articles-section"
+import ArticlesDiscoverySection from "./member/articles-discovery-section"
 import ArticleReader from "./member/article-reader"
 import PharmacySection from "./member/pharmacy-section"
 import HealthServiceSection from "./member/health-service-section"
@@ -31,6 +40,10 @@ interface Article {
 }
 
 export function MemberApp() {
+  // --- STATE ---
+  const { user, userProfile } = useAuth() // Ambil Data User
+  const router = useRouter()
+  
   const [activeTab, setActiveTab] = useState("home")
   const [balanceVisible, setBalanceVisible] = useState(true)
   const [selectedChat, setSelectedChat] = useState<string | null>(null)
@@ -39,6 +52,7 @@ export function MemberApp() {
   const [sidebarExpanded, setSidebarExpanded] = useState(true)
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null)
 
+  // --- LOGIC ---
   const handleTabChange = (tab: string) => {
     setNavigationHistory([...navigationHistory, tab])
     setActiveTab(tab)
@@ -51,32 +65,54 @@ export function MemberApp() {
       setActiveTab(newHistory[newHistory.length - 1])
     }
   }
+  
+  const handleLogout = async () => {
+    await signOut(auth)
+    router.push("/auth")
+  }
+
+  // Helper untuk inisial nama
+  const getInitials = (name: string) => name ? name.charAt(0).toUpperCase() : "U"
 
   const isMessagingOpen = activeTab === "messaging" || selectedChat !== null
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col lg:flex-row">
       
-      {/* --- SIDEBAR --- */}
+      {/* ================= SIDEBAR (DESKTOP) ================= */}
       <div
-        className={`hidden lg:flex fixed left-0 top-20 bottom-0 bg-white border-r border-slate-200 flex-col z-40 transition-all duration-300 ${
+        className={`hidden lg:flex fixed left-0 top-16 bottom-0 bg-white border-r border-slate-200 flex-col z-40 transition-all duration-300 ${
           sidebarExpanded ? "w-72" : "w-24"
         }`}
+        style={{ top: '4rem' }}
       >
-        <div className={`px-6 py-6 border-b border-slate-200 transition-all duration-300 ${!sidebarExpanded && "px-3"}`}>
+        {/* HEADER SIDEBAR (DINAMIS) */}
+        <div className={`px-6 pt-8 pb-6 border-b border-slate-200 transition-all duration-300 ${!sidebarExpanded && "px-3"}`}>
           <div className="flex items-center gap-3 h-12">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-blue-700 flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
-              T
-            </div>
+            
+            {/* AVATAR USER */}
+            <Avatar className="w-12 h-12 border-2 border-white shadow-sm">
+              <AvatarImage src={user?.photoURL || ""} />
+              <AvatarFallback className="bg-gradient-to-br from-primary to-blue-700 text-white font-bold text-lg">
+                {getInitials(userProfile?.displayName)}
+              </AvatarFallback>
+            </Avatar>
+
+            {/* INFO USER (Hanya muncul jika expanded) */}
             {sidebarExpanded && (
               <div className="overflow-hidden">
-                <p className="font-bold text-slate-900 truncate text-base">Tubagus Ahmad</p>
-                <p className="text-sm text-slate-500 truncate">ID: KOP-001</p>
+                <p className="font-bold text-slate-900 truncate text-xl">
+                  {userProfile?.displayName || "Anggota"}
+                </p>
+                <p className="text-sm text-slate-500 truncate font-mono">
+                  ID: {userProfile?.memberId || "---"}
+                </p>
               </div>
             )}
           </div>
         </div>
 
+        {/* MENU SIDEBAR */}
         <nav className="flex-1 overflow-y-auto p-4 space-y-2">
           <BottomNavigation activeTab={activeTab} onTabChange={handleTabChange} sidebarExpanded={sidebarExpanded} />
           {isSeller && (
@@ -92,6 +128,7 @@ export function MemberApp() {
           )}
         </nav>
 
+        {/* FOOTER SIDEBAR (TOGGLE & LOGOUT) */}
         <div className="p-4 border-t border-slate-200 space-y-2">
           <button
             onClick={() => setSidebarExpanded(!sidebarExpanded)}
@@ -100,14 +137,18 @@ export function MemberApp() {
             <span className="text-lg flex-shrink-0">{sidebarExpanded ? "‹" : "›"}</span>
             {sidebarExpanded && <span>Collapse</span>}
           </button>
-          <button className="w-full flex items-center justify-center lg:justify-start gap-3 px-4 py-2 text-slate-700 hover:bg-slate-100 hover:text-slate-900 rounded-lg transition text-sm font-semibold">
-            <span className="text-lg flex-shrink-0">←</span>
+          
+          <button 
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center lg:justify-start gap-3 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition text-sm font-semibold"
+          >
+            <span className="text-lg flex-shrink-0"><LogOut size={20} /></span>
             {sidebarExpanded && <span>Logout</span>}
           </button>
         </div>
       </div>
 
-      {/* --- MAIN CONTENT --- */}
+      {/* ================= MAIN CONTENT (KANAN) ================= */}
       <div className={`flex-1 flex flex-col transition-all duration-300 ${sidebarExpanded ? "lg:ml-72" : "lg:ml-24"}`}>
         
         {/* Page Content */}
@@ -129,31 +170,36 @@ export function MemberApp() {
                     <ActionButtons />
                   </div>
 
-                  {/* UPDATE POSISI: PPOB (Layanan Cepat) Naik ke atas */}
+                  {/* PPOB */}
                   <div>
                     <h3 className="text-xl font-bold text-slate-900 mb-6">Layanan Cepat</h3>
                     <PPOBGrid />
                   </div>
 
-                  {/* UPDATE POSISI: Berita (Articles) */}
+                  {/* BERITA */}
                   <div>
                     <ArticlesSection onArticleClick={setSelectedArticle} />
                   </div>
 
-                  {/* UPDATE POSISI: Health Service Section PINDAH KE SINI (Di bawah Berita) */}
+                  {/* JELAJAHI ARTIKEL (DISCOVERY SECTION) */}
+                  <ArticlesDiscoverySection onArticleClick={setSelectedArticle} />
+
+                  {/* KESEHATAN */}
                   <div>
                     <HealthServiceSection />
                   </div>
 
-                  {/* Pharmacy Section mengikuti Layanan Kesehatan */}
+                  {/* APOTEK */}
                   <div>
                     <PharmacySection />
                   </div>
 
+                  {/* LIVE SHOPPING */}
                   <div>
                     <LiveShoppingSection />
                   </div>
 
+                  {/* MARKETPLACE */}
                   <div>
                     <h3 className="text-xl font-bold text-slate-900 mb-6">Marketplace Lokal</h3>
                     <MarketplaceWithMap />

@@ -1,264 +1,162 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
-import { Eye, EyeOff, Lock, User, Mail } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Eye, EyeOff, Lock, User, Mail, Loader2 } from "lucide-react"
+import { 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  updateProfile, 
+  signInWithPopup // Import untuk Popup Google
+} from "firebase/auth"
+import { auth, googleProvider, createUserProfile } from "@/lib/firebase" // Import googleProvider
+import { useToast } from "@/components/ui/use-toast" // Pastikan import ini ada jika pakai toast
 
 export default function AuthPage() {
   const [authMode, setAuthMode] = useState<"login" | "register">("login")
-  const [userRole, setUserRole] = useState<"member" | "writer">("member")
+  
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [name, setName] = useState("")
+  
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+
+  const router = useRouter()
+  // const { toast } = useToast() // Aktifkan jika sudah fix path toast
+
+  // --- FUNGSI LOGIN GOOGLE ---
+  const handleGoogleLogin = async () => {
+    setIsLoading(true)
+    try {
+      const result = await signInWithPopup(auth, googleProvider)
+      const user = result.user
+      
+      // Simpan data user Google ke database (otomatis jadi Member jika belum ada)
+      await createUserProfile(user, user.displayName || "User Google")
+      
+      // alert("Login Google Berhasil!") 
+      router.push("/app")
+    } catch (error: any) {
+      console.error("Google Auth Error:", error)
+      alert("Gagal login dengan Google. Coba lagi.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+  // ---------------------------
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
 
-    // Simulate auth delay
-    await new Promise((resolve) => setTimeout(resolve, 500))
-
-    if (authMode === "login") {
-      // Redirect based on role
-      if (userRole === "writer") {
-        window.location.href = "/writer"
+    try {
+      if (authMode === "login") {
+        await signInWithEmailAndPassword(auth, email, password)
+        router.push("/app")
       } else {
-        window.location.href = "/app"
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password)
+        const user = userCredential.user
+        if (name) await updateProfile(user, { displayName: name })
+        await createUserProfile(user, name)
+        router.push("/app")
       }
-    } else {
-      // After register, show login
-      setAuthMode("login")
-      setEmail("")
-      setPassword("")
-      setName("")
+    } catch (error: any) {
+      console.error("Auth Error:", error)
+      let msg = "Terjadi kesalahan sistem."
+      if (error.code === 'auth/invalid-credential') msg = "Email atau password salah."
+      if (error.code === 'auth/email-already-in-use') msg = "Email sudah terdaftar."
+      if (error.code === 'auth/weak-password') msg = "Password minimal 6 karakter."
+      alert(msg)
+    } finally {
+      setIsLoading(false)
     }
-
-    setIsLoading(false)
   }
 
   return (
     <div className="min-h-screen bg-white flex">
-      {/* Left Side - Branding */}
+      {/* KIRI: BRANDING */}
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary via-blue-600 to-blue-700 flex-col items-center justify-center p-12 relative overflow-hidden">
-        {/* Decorative circles */}
         <div className="absolute top-20 left-20 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
         <div className="absolute bottom-20 right-20 w-96 h-96 bg-blue-400/10 rounded-full blur-3xl"></div>
-
         <div className="relative z-10 text-center space-y-6">
           <div className="w-20 h-20 bg-white/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
-            <div className="w-16 h-16 bg-white rounded-xl flex items-center justify-center font-bold text-3xl text-primary">
-              K4
-            </div>
+            <div className="w-16 h-16 bg-white rounded-xl flex items-center justify-center font-bold text-3xl text-primary">K4</div>
           </div>
           <h1 className="text-5xl font-bold text-white leading-tight">Koperasi Digital Masa Depan</h1>
-          <p className="text-blue-100 text-lg max-w-md">
-            Satu platform untuk semua kebutuhan transaksi dan bisnis digital Anda
-          </p>
-
-          <div className="pt-8 space-y-3 text-left text-blue-100">
-            {[
-              "Pembayaran tagihan tanpa biaya admin",
-              "Marketplace dengan produk lokal",
-              "Komunitas bisnis yang supportif",
-              "Fitur penjual untuk UMKM",
-            ].map((item, idx) => (
-              <div key={idx} className="flex items-center gap-3">
-                <div className="w-5 h-5 rounded-full bg-white/30 flex items-center justify-center text-xs">✓</div>
-                <span>{item}</span>
-              </div>
-            ))}
-          </div>
+          <p className="text-blue-100 text-lg max-w-md">Satu platform untuk semua kebutuhan transaksi dan bisnis digital Anda</p>
         </div>
       </div>
 
-      {/* Right Side - Auth Form */}
+      {/* KANAN: FORM */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-4 sm:p-8">
         <div className="w-full max-w-md">
-          {/* Logo Mobile */}
           <div className="lg:hidden mb-8 text-center">
-            <div className="w-12 h-12 bg-primary rounded-lg flex items-center justify-center text-white font-bold text-xl mx-auto mb-3">
-              K4
-            </div>
             <h1 className="text-2xl font-bold text-slate-900">Koperasi 4.0</h1>
           </div>
 
-          {/* Role Tabs */}
-          <div className="flex gap-2 mb-8">
-            <button
-              onClick={() => setUserRole("member")}
-              className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-colors ${
-                userRole === "member" 
-                  ? "bg-primary text-white" 
-                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-              }`}
-            >
-              Member
-            </button>
-            <button
-              onClick={() => setUserRole("writer")}
-              className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-colors ${
-                userRole === "writer" 
-                  ? "bg-primary text-white" 
-                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-              }`}
-            >
-              Penulis
-            </button>
+          <div className="flex gap-2 mb-8 bg-slate-50 p-1 rounded-lg">
+            <button onClick={() => setAuthMode("login")} className={`flex-1 py-3 font-semibold rounded-md transition ${authMode === "login" ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>Login</button>
+            <button onClick={() => setAuthMode("register")} className={`flex-1 py-3 font-semibold rounded-md transition ${authMode === "register" ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>Register</button>
           </div>
 
-          {/* Tabs */}
-          <div className="flex gap-2 mb-8">
-            <button
-              onClick={() => setAuthMode("login")}
-              className={`flex-1 py-3 font-semibold rounded-lg transition ${
-                authMode === "login" ? "bg-primary text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
-            >
-              Login
-            </button>
-            <button
-              onClick={() => setAuthMode("register")}
-              className={`flex-1 py-3 font-semibold rounded-lg transition ${
-                authMode === "register" ? "bg-primary text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
-            >
-              Register
-            </button>
-          </div>
-
-          {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             {authMode === "register" && (
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-2">Nama Lengkap</label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Nama Anda"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                  />
+                  <input type="text" placeholder="Nama Anda" value={name} onChange={(e) => setName(e.target.value)} className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:outline-none" required />
                 </div>
               </div>
             )}
-
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Email / Member ID</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Email</label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                <input
-                  type="email"
-                  placeholder="tubagus.ahmad@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                />
+                <input type="email" placeholder="nama@email.com" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:outline-none" required />
               </div>
             </div>
-
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">Password</label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                <input
-                  type={showPassword ? "text" : "password"}
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-10 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                >
+                <input type={showPassword ? "text" : "password"} placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full pl-10 pr-10 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:outline-none" required />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
                   {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
               </div>
             </div>
 
-            {authMode === "login" && (
-              <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" className="w-4 h-4 rounded border-slate-300" />
-                  <span className="text-sm text-slate-600">Ingat saya</span>
-                </label>
-                <a href="#" className="text-sm text-primary hover:text-blue-700 font-semibold">
-                  Lupa password?
-                </a>
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full py-3 bg-primary text-white font-semibold rounded-lg hover:bg-blue-700 transition disabled:opacity-50 active:scale-95"
-            >
-              {isLoading ? "Loading..." : authMode === "login" ? "Login" : "Register"}
+            <button type="submit" disabled={isLoading} className="w-full py-3 bg-primary text-white font-semibold rounded-lg hover:bg-blue-700 transition flex items-center justify-center gap-2">
+              {isLoading ? <><Loader2 className="w-5 h-5 animate-spin" /> Memproses...</> : (authMode === "login" ? "Masuk Sekarang" : "Buat Akun")}
             </button>
           </form>
 
-          {/* Quick Login Buttons (untuk prototyping) */}
-          <div className="mt-6 space-y-2">
-            <p className="text-center text-sm text-slate-600 mb-3">Demo Login (untuk testing):</p>
-            <button
-              onClick={() => {
-                setEmail("admin@koperasi4.id")
-                setPassword("admin123")
-                window.location.href = "/app?role=admin"
-              }}
-              className="w-full py-2 border border-primary text-primary font-semibold rounded-lg hover:bg-primary/5 transition text-sm"
-            >
-              Login as Admin
-            </button>
-            <button
-              onClick={() => {
-                setEmail("tubagus.ahmad@email.com")
-                setPassword("member123")
-                window.location.href = "/app?role=member"
-              }}
-              className="w-full py-2 border border-slate-300 text-slate-600 font-semibold rounded-lg hover:bg-slate-50 transition text-sm"
-            >
-              Login as Member
-            </button>
-            <button
-              onClick={() => {
-                setEmail("writer@koperasi4.id")
-                setPassword("writer123")
-                window.location.href = "/app?role=writer"
-              }}
-              className="w-full py-2 border border-green-300 text-green-600 font-semibold rounded-lg hover:bg-green-50 transition text-sm"
-            >
-              Login as Writer
-            </button>
-          </div>
+          {/* --- BAGIAN TOMBOL GOOGLE --- */}
+          <div className="mt-6">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-slate-200" /></div>
+              <div className="relative flex justify-center text-xs uppercase"><span className="bg-white px-2 text-slate-500">Atau lanjut dengan</span></div>
+            </div>
 
-          {/* Footer */}
-          <div className="mt-8 text-center text-slate-600">
-            {authMode === "login" ? (
-              <p>
-                Belum jadi anggota?{" "}
-                <button
-                  onClick={() => setAuthMode("register")}
-                  className="text-primary font-semibold hover:text-blue-700"
-                >
-                  Daftar Sekarang
-                </button>
-              </p>
-            ) : (
-              <p>
-                Sudah punya akun?{" "}
-                <button onClick={() => setAuthMode("login")} className="text-primary font-semibold hover:text-blue-700">
-                  Login Di Sini
-                </button>
-              </p>
-            )}
+            <button 
+              onClick={handleGoogleLogin} 
+              disabled={isLoading}
+              className="mt-4 w-full flex items-center justify-center gap-2 py-3 border border-slate-300 rounded-lg hover:bg-slate-50 transition font-medium text-slate-700"
+            >
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M22.56 12.25c0 6.634-5.283 12-11.81 12-3.106 0-5.974-1.18-8.083-3.116m16.894-5.884v.5c0 2.285-1.822 4.174-4.104 4.174-2.29 0-4.136-1.889-4.136-4.174" stroke="#4285F4" strokeWidth="1.5"/>
+                <circle cx="12" cy="12" r="9.5" fill="#4285F4" opacity="0.1"/>
+                <path d="M9.6 12c0 1.32 1.074 2.4 2.4 2.4 1.326 0 2.4-1.074 2.4-2.4 0-1.326-1.074-2.4-2.4-2.4-1.326 0-2.4 1.074-2.4 2.4z" fill="#EA4335"/>
+                <path d="M3.9 12c0 1.32-1.074 2.4-2.4 2.4-1.326 0-2.4-1.074-2.4-2.4 0-1.326 1.074-2.4 2.4-2.4 1.326 0 2.4 1.074 2.4 2.4z" fill="#FBBC04"/>
+                <path d="M12 20.1c-1.326 0-2.4 1.074-2.4 2.4 0 1.326 1.074 2.4 2.4 2.4 1.326 0 2.4-1.074 2.4-2.4-0.006-1.326-1.074-2.4-2.4-2.4z" fill="#34A853"/>
+              </svg>
+              <span>Masuk dengan Google</span>
+            </button>
           </div>
+          
         </div>
       </div>
     </div>

@@ -4,8 +4,13 @@ import React from "react"
 
 import { useState } from "react"
 import { Upload, Save, Send } from "lucide-react"
+import { useAuth } from "@/components/auth-provider"
+import { createArticle } from "@/lib/firebase"
 
 export default function WriterEditor() {
+  const { user, userProfile } = useAuth()
+  const [isSaving, setIsSaving] = useState(false)
+  
   const [formData, setFormData] = useState({
     title: "",
     category: "Keuangan & Bisnis",
@@ -15,12 +20,43 @@ export default function WriterEditor() {
 
   const categories = ["Keuangan & Bisnis", "Hasil Tani", "Kesehatan", "Teknologi"]
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent, publish: boolean = false) => {
     e.preventDefault()
-    console.log("Submitting article:", formData)
-    alert("Artikel berhasil disimpan!")
-    setFormData({ title: "", category: "Keuangan & Bisnis", content: "", cover: "" })
+    
+    if (!user) {
+      alert("Anda harus login terlebih dahulu")
+      return
+    }
+
+    if (!formData.title.trim() || !formData.content.trim()) {
+      alert("Judul dan konten tidak boleh kosong")
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const articleId = await createArticle(user.uid, {
+        title: formData.title,
+        category: formData.category,
+        content: formData.content,
+        excerpt: formData.content.substring(0, 150) + "...",
+        cover: formData.cover,
+        author: userProfile?.displayName || "Penulis",
+        status: publish ? "published" : "draft",
+      })
+
+      alert(`Artikel berhasil di${publish ? "publikasikan" : "simpan"}!`)
+      setFormData({ title: "", category: "Keuangan & Bisnis", content: "", cover: "" })
+    } catch (error) {
+      console.error("Error saving article:", error)
+      alert("Gagal menyimpan artikel")
+    } finally {
+      setIsSaving(false)
+    }
   }
+
+  const handleSaveDraft = (e: React.FormEvent) => handleSubmit(e, false)
+  const handlePublish = (e: React.FormEvent) => handleSubmit(e, true)
 
   return (
     <div className="space-y-6">
@@ -29,7 +65,7 @@ export default function WriterEditor() {
         <p className="text-slate-600">Buat artikel berkualitas untuk komunitas Anda</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form className="space-y-6">
         {/* Cover Image Upload */}
         <div className="bg-white rounded-lg border border-slate-200 p-6">
           <label className="block text-sm font-semibold text-slate-700 mb-4">Gambar Sampul (Cover)</label>
@@ -119,18 +155,20 @@ export default function WriterEditor() {
         {/* Action Buttons */}
         <div className="flex gap-4 flex-col sm:flex-row">
           <button
-            type="submit"
-            className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-primary text-white font-semibold rounded-lg hover:bg-blue-700 transition active:scale-95"
+            onClick={handleSaveDraft}
+            disabled={isSaving}
+            className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-primary text-white font-semibold rounded-lg hover:bg-blue-700 transition active:scale-95 disabled:opacity-50"
           >
             <Save className="w-5 h-5" />
-            Simpan sebagai Draft
+            {isSaving ? "Menyimpan..." : "Simpan sebagai Draft"}
           </button>
           <button
-            type="submit"
-            className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition active:scale-95"
+            onClick={handlePublish}
+            disabled={isSaving}
+            className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition active:scale-95 disabled:opacity-50"
           >
             <Send className="w-5 h-5" />
-            Terbitkan Sekarang
+            {isSaving ? "Menerbitkan..." : "Terbitkan Sekarang"}
           </button>
         </div>
       </form>

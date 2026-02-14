@@ -1,34 +1,14 @@
-import type React from "react"
 import type { Metadata } from "next"
-import { Geist, Geist_Mono } from "next/font/google"
-import { Analytics } from "@vercel/analytics/next"
+import { Inter } from "next/font/google"
 import "./globals.css"
+import { AuthProvider } from "@/components/auth-provider" // Import Provider
+import { Toaster } from "@/components/ui/toaster" // Import Toaster
 
-const _geist = Geist({ subsets: ["latin"] })
-const _geistMono = Geist_Mono({ subsets: ["latin"] })
+const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Koperasi 4.0 Super App - Digital Cooperative Ecosystem",
-  description:
-    "Platform digital untuk member koperasi dengan fitur PPOB, marketplace, live shopping, dan dashboard admin analytics",
-  generator: "v0.app",
-  icons: {
-    icon: [
-      {
-        url: "/icon-light-32x32.png",
-        media: "(prefers-color-scheme: light)",
-      },
-      {
-        url: "/icon-dark-32x32.png",
-        media: "(prefers-color-scheme: dark)",
-      },
-      {
-        url: "/icon.svg",
-        type: "image/svg+xml",
-      },
-    ],
-    apple: "/apple-icon.png",
-  },
+  title: "Koperasi 4.0 Super App",
+  description: "Platform koperasi digital masa depan",
 }
 
 export default function RootLayout({
@@ -38,9 +18,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="id">
-      <body className={`font-sans antialiased`}>
-        {children}
-        <Analytics />
+      <body className={inter.className}>
+        <AuthProvider>
+          {children}
+          <Toaster /> 
+        </AuthProvider>
       </body>
     </html>
   )

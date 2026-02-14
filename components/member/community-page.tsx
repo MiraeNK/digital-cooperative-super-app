@@ -1,8 +1,11 @@
 "use client"
 
-import { useState } from "react"
-import { Heart, MessageCircle, MessageSquare, Badge, ThumbsUp, ThumbsDown, Trash2, ChevronLeft, ChevronRight, Plus } from "lucide-react"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { Heart, MessageCircle, MessageSquare, Badge, ThumbsUp, ThumbsDown, Trash2, ChevronLeft, ChevronRight, Plus, Loader2 } from "lucide-react"
 import FloatingMessageButton from "./floating-message-button"
+import { useAuth } from "@/components/auth-provider"
+import { getUserProfile, createForumPost, getForumPosts, addCommentToPost, deleteForumPost, deleteComment, voteOnPost, getForumPostsWithAuthorData, deleteForumPostByAdmin } from "@/lib/firebase"
 
 interface Comment {
   id: string
@@ -43,6 +46,10 @@ interface CommunityPageProps {
 }
 
 export default function CommunityPage({ onChatSelect, userRole = "member" }: CommunityPageProps) {
+  const { user, userProfile } = useAuth()
+  const router = useRouter()
+  const [userCache, setUserCache] = useState<{ [key: string]: any }>({})
+  
   const [showComments, setShowComments] = useState<string | null>(null)
   const [commentInput, setCommentInput] = useState("")
   const [carouselIndex, setCarouselIndex] = useState(0)
@@ -53,14 +60,19 @@ export default function CommunityPage({ onChatSelect, userRole = "member" }: Com
   const [newThreadImage, setNewThreadImage] = useState<string | null>(null)
   const [newThreadPrice, setNewThreadPrice] = useState("")
   const [expandedPost, setExpandedPost] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSavingPost, setIsSavingPost] = useState(false)
+  const [isSavingComment, setIsSavingComment] = useState(false)
+  const [deletingPostId, setDeletingPostId] = useState<string | null>(null)
+  const [userRole_, setUserRole_] = useState<"member" | "admin">("member")
 
-  const [forumPosts, setForumPosts] = useState<ForumPost[]>([
+  const dummyPosts: ForumPost[] = [
     {
-      id: "1",
+      id: "dummy-1",
       type: "discussion",
       topic: "Keuangan & Bisnis",
       author: "Admin Koperasi",
-      authorId: "admin",
+      authorId: "admin-dummy",
       title: "Rapat Anggota Tahunan 2024: Kesempatan Tanya Jawab",
       content:
         "Rapat Anggota Tahunan akan diadakan tanggal 28 Februari 2024. Peserta akan membahas laporan tahunan, pembagian SHU, dan strategi bisnis 2024.",
@@ -93,7 +105,7 @@ export default function CommunityPage({ onChatSelect, userRole = "member" }: Com
       ],
     },
     {
-      id: "2",
+      id: "dummy-2",
       type: "selling",
       topic: "Hasil Tani",
       author: "Roni Hermawan",
@@ -129,57 +141,47 @@ export default function CommunityPage({ onChatSelect, userRole = "member" }: Com
         },
       ],
     },
-    {
-      id: "3",
-      type: "discussion",
-      topic: "Hasil Tani",
-      author: "Wahyu Subagyo",
-      authorId: "wahyu",
-      title: "Pertanyaan: Pupuk Organik vs Kimia untuk Padi",
-      content:
-        "Saya baru mulai bertani padi. Banyak yang recommend pupuk organik tapi harganya mahal. Apakah worth it dibanding pupuk kimia biasa?",
-      timestamp: "6 jam lalu",
-      upvotes: 67,
-      downvotes: 1,
-      comments: [
-        {
-          id: "c3",
-          author: "Bambang Suryanto",
-          authorId: "bambang",
-          content: "Pupuk organik lebih bagus untuk jangka panjang, biaya awal tinggi tapi hasil lebih berkualitas",
-          timestamp: "5 jam lalu",
-          upvotes: 18,
-          downvotes: 1,
-        },
-      ],
-    },
-    {
-      id: "4",
-      type: "selling",
-      topic: "Kesehatan",
-      author: "Dewi Lestari",
-      authorId: "dewi",
-      title: "Telur Ayam Kampung Organik Tinggi Protein",
-      content:
-        "Menerima pesanan telur ayam kampung organik. Dipelihara tanpa hormon dan bebas pestisida. Ideal untuk nutrisi keluarga.",
-      image: "/organic-farm-eggs.jpg",
-      price: 65000,
-      timestamp: "8 jam lalu",
-      upvotes: 156,
-      downvotes: 3,
-      comments: [
-        {
-          id: "c4",
-          author: "Rina Wijaya",
-          authorId: "rina",
-          content: "Lokasi pengiriman ke mana saja?",
-          timestamp: "7 jam lalu",
-          upvotes: 9,
-          downvotes: 0,
-        },
-      ],
-    },
-  ])
+  ]
+
+  const [forumPosts, setForumPosts] = useState<ForumPost[]>(dummyPosts)
+
+  // Fetch posts from Firebase on mount
+  useEffect(() => {
+    const fetchPosts = async () => {
+      setIsLoading(true)
+      try {
+        const posts = await getForumPostsWithAuthorData()
+        // Combine Firebase posts dengan dummy posts, ensuring comments are always arrays
+        const normalizedPosts = posts.map((post: any) => ({
+          ...post,
+          comments: post.comments || []
+        }))
+        const combinedPosts = [...normalizedPosts, ...dummyPosts]
+        setForumPosts(combinedPosts)
+      } catch (error) {
+        console.error("Error fetching posts:", error)
+        setForumPosts(dummyPosts)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchPosts()
+  }, [])
+
+  // Cache user profiles untuk menampilkan author names
+  const getCachedUserProfile = async (userId: string) => {
+    if (userCache[userId]) {
+      return userCache[userId]
+    }
+    try {
+      const profile = await getUserProfile(userId)
+      setUserCache(prev => ({ ...prev, [userId]: profile }))
+      return profile
+    } catch (error) {
+      return null
+    }
+  }
 
   const topics = ["Keuangan & Bisnis", "Hasil Tani", "Kesehatan", "Teknologi"]
   const [selectedTopics, setSelectedTopics] = useState<string[]>([])
@@ -197,42 +199,84 @@ export default function CommunityPage({ onChatSelect, userRole = "member" }: Com
     return selectedTopics.includes(post.topic)
   })
 
-  const toggleUpvote = (postId: string) => {
-    setForumPosts(
-      forumPosts.map((post) =>
-        post.id === postId
-          ? {
-              ...post,
-              upvoted: !post.upvoted,
-              upvotes: post.upvoted ? post.upvotes - 1 : post.upvotes + 1,
-              downvoted: post.upvoted ? false : post.downvoted,
-            }
-          : post,
-      ),
-    )
+  const toggleUpvote = async (postId: string) => {
+    try {
+      await voteOnPost(postId, user?.uid || "", "upvote")
+      setForumPosts(
+        forumPosts.map((post) =>
+          post.id === postId
+            ? {
+                ...post,
+                upvoted: !post.upvoted,
+                upvotes: post.upvoted ? post.upvotes - 1 : post.upvotes + 1,
+                downvoted: post.upvoted ? false : post.downvoted,
+              }
+            : post,
+        ),
+      )
+    } catch (error) {
+      console.error("Error voting:", error)
+    }
   }
 
-  const toggleDownvote = (postId: string) => {
-    setForumPosts(
-      forumPosts.map((post) =>
-        post.id === postId
-          ? {
-              ...post,
-              downvoted: !post.downvoted,
-              downvotes: post.downvoted ? post.downvotes - 1 : post.downvotes + 1,
-              upvoted: post.downvoted ? false : post.upvoted,
-            }
-          : post,
-      ),
-    )
+  const toggleDownvote = async (postId: string) => {
+    try {
+      await voteOnPost(postId, user?.uid || "", "downvote")
+      setForumPosts(
+        forumPosts.map((post) =>
+          post.id === postId
+            ? {
+                ...post,
+                downvoted: !post.downvoted,
+                downvotes: post.downvoted ? post.downvotes - 1 : post.downvotes + 1,
+                upvoted: post.downvoted ? false : post.upvoted,
+              }
+            : post,
+        ),
+      )
+    } catch (error) {
+      console.error("Error voting:", error)
+    }
   }
 
-  const deletePost = (postId: string) => {
-    setForumPosts(forumPosts.filter((post) => post.id !== postId))
+  // Set user role from userProfile
+  useEffect(() => {
+    if (userProfile?.role) {
+      setUserRole_(userProfile.role as "member" | "admin")
+    }
+  }, [userProfile])
+
+  const deletePost = async (postId: string) => {
+    // Jangan delete dummy posts
+    if (postId.includes("dummy")) {
+      alert("Tidak bisa menghapus post default")
+      return
+    }
+    
+    if (!user) {
+      alert("Anda harus login untuk menghapus postingan")
+      return
+    }
+
+    try {
+      setDeletingPostId(postId)
+      await deleteForumPostByAdmin(postId, user.uid, userRole_)
+      setForumPosts(forumPosts.filter((post) => post.id !== postId))
+      alert("Postingan berhasil dihapus")
+    } catch (error) {
+      console.error("Error deleting post:", error)
+      alert((error as any)?.message || "Gagal menghapus postingan")
+    } finally {
+      setDeletingPostId(null)
+    }
   }
 
-  const addCommentToPost = (postId: string) => {
-    if (commentInput.trim()) {
+  const handleAddComment = async (postId: string) => {
+    if (!user || !commentInput.trim()) return
+    
+    setIsSavingComment(true)
+    try {
+      await addCommentToPost(postId, user.uid, commentInput)
       setForumPosts(
         forumPosts.map((post) =>
           post.id === postId
@@ -242,8 +286,8 @@ export default function CommunityPage({ onChatSelect, userRole = "member" }: Com
                   ...post.comments,
                   {
                     id: `c${Date.now()}`,
-                    author: "Tubagus Ahmad",
-                    authorId: "tubagus",
+                    author: userProfile?.displayName || "User",
+                    authorId: user.uid,
                     content: commentInput,
                     timestamp: "Sekarang",
                     upvotes: 0,
@@ -255,33 +299,47 @@ export default function CommunityPage({ onChatSelect, userRole = "member" }: Com
         ),
       )
       setCommentInput("")
+    } catch (error) {
+      console.error("Error adding comment:", error)
+    } finally {
+      setIsSavingComment(false)
     }
   }
 
-  const createNewThread = () => {
-    if (newThreadTitle.trim() && newThreadContent.trim()) {
-      const newPost: ForumPost = {
-        id: `p${Date.now()}`,
+  const createNewThread = async () => {
+    if (!user || !newThreadTitle.trim() || !newThreadContent.trim()) {
+      alert("Silakan isi semua field")
+      return
+    }
+    
+    setIsSavingPost(true)
+    try {
+      await createForumPost(user.uid, {
         type: newThreadType,
-        topic: "Teknologi",
-        author: "Tubagus Ahmad",
-        authorId: "tubagus",
+        topic: selectedTopics.length > 0 ? selectedTopics[0] : "Teknologi",
+        author: userProfile?.displayName || "User",
         title: newThreadTitle,
         content: newThreadContent,
-        image: newThreadImage || undefined,
-        price: newThreadType === "selling" ? Number(newThreadPrice) : undefined,
-        timestamp: "Sekarang",
-        upvotes: 0,
-        downvotes: 0,
-        comments: [],
-      }
-      setForumPosts([newPost, ...forumPosts])
+        image: newThreadImage || null,
+        price: newThreadType === "selling" ? Number(newThreadPrice) : null,
+      })
+      
+      // Refresh posts
+      const posts = await getForumPosts()
+      const combinedPosts = [...(posts as any[]), ...dummyPosts]
+      setForumPosts(combinedPosts)
+      
       setNewThreadTitle("")
       setNewThreadContent("")
       setNewThreadImage(null)
       setNewThreadPrice("")
       setNewThreadType("discussion")
       setShowNewThread(false)
+    } catch (error) {
+      console.error("Error creating thread:", error)
+      alert("Gagal membuat post")
+    } finally {
+      setIsSavingPost(false)
     }
   }
 
@@ -291,7 +349,7 @@ export default function CommunityPage({ onChatSelect, userRole = "member" }: Com
         post.id === postId
           ? {
               ...post,
-              comments: post.comments.map((c) =>
+              comments: (post.comments || []).map((c) =>
                 c.id === commentId
                   ? {
                       ...c,
@@ -352,7 +410,7 @@ export default function CommunityPage({ onChatSelect, userRole = "member" }: Com
   ]
 
   const addComment = (postId: string) => {
-    addCommentToPost(postId)
+    handleAddComment(postId)
   }
 
   return (
@@ -533,12 +591,20 @@ export default function CommunityPage({ onChatSelect, userRole = "member" }: Com
                 {/* Header */}
                 <div className="p-4 border-b border-slate-200">
                   <div className="flex items-start gap-3 mb-3">
-                    <div className="w-10 h-10 flex-shrink-0 rounded-full bg-primary flex items-center justify-center text-white font-bold text-sm">
+                    <button
+                      onClick={() => router.push(`/profile/${post.authorId}`)}
+                      className="w-10 h-10 flex-shrink-0 rounded-full bg-primary flex items-center justify-center text-white font-bold text-sm hover:opacity-80 transition"
+                    >
                       {post.author.charAt(0)}
-                    </div>
+                    </button>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <h4 className="font-semibold text-slate-900">{post.author}</h4>
+                        <button
+                          onClick={() => router.push(`/profile/${post.authorId}`)}
+                          className="font-semibold text-slate-900 hover:text-primary transition"
+                        >
+                          {post.author}
+                        </button>
                         <Badge className="bg-blue-100 text-primary text-xs">{post.topic}</Badge>
                       </div>
                       <p className="text-xs text-slate-500">{post.timestamp}</p>
@@ -621,7 +687,7 @@ export default function CommunityPage({ onChatSelect, userRole = "member" }: Com
                       className="flex items-center gap-1 text-sm font-semibold text-slate-600 hover:text-primary transition"
                     >
                       <MessageCircle className="w-4 h-4" />
-                      {post.comments.length}
+                      {(post.comments || []).length}
                     </button>
                   </div>
                   <div className="flex items-center gap-2">
@@ -651,16 +717,24 @@ export default function CommunityPage({ onChatSelect, userRole = "member" }: Com
                   <div className="px-4 py-4 bg-slate-50 border-t border-slate-200 space-y-4">
                     {/* Comments List */}
                     <div className="space-y-4 max-h-96 overflow-y-auto">
-                      {post.comments.map((comment) => (
+                      {(post.comments || []).map((comment) => (
                         <div key={comment.id} className="space-y-2">
                           {/* Main Comment */}
                           <div className="bg-white rounded p-3 space-y-2">
                             <div className="flex items-center gap-2">
-                              <div className="w-7 h-7 rounded-full bg-primary text-white text-xs flex items-center justify-center font-bold">
+                              <button
+                                onClick={() => router.push(`/profile/${comment.authorId}`)}
+                                className="w-7 h-7 rounded-full bg-primary text-white text-xs flex items-center justify-center font-bold hover:opacity-80 transition"
+                              >
                                 {comment.author.charAt(0)}
-                              </div>
+                              </button>
                               <div>
-                                <p className="text-sm font-semibold text-slate-900">{comment.author}</p>
+                                <button
+                                  onClick={() => router.push(`/profile/${comment.authorId}`)}
+                                  className="text-sm font-semibold text-slate-900 hover:text-primary transition"
+                                >
+                                  {comment.author}
+                                </button>
                                 <p className="text-xs text-slate-500">{comment.timestamp}</p>
                               </div>
                             </div>
