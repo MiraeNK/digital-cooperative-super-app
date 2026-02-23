@@ -15,7 +15,9 @@ import {
   updateDoc,
   orderBy,
   limit,
-  Timestamp
+  Timestamp,
+  arrayUnion,
+  arrayRemove
 } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -503,30 +505,6 @@ export const getCommentsForPostWithUserData = async (postId: string) => {
 };
 
 // ============== USER SEARCH & DISCOVERY FUNCTIONS ==============
-export const searchUsers = async (searchTerm: string) => {
-  try {
-    const usersRef = collection(db, "users");
-    const snapshot = await getDocs(usersRef);
-    
-    const results = snapshot.docs
-      .map(doc => ({
-        id: doc.id,
-        ...(doc.data() as any),
-      }))
-      .filter((user: any) => {
-        const name = (user.displayName || "").toLowerCase();
-        const email = (user.email || "").toLowerCase();
-        const term = searchTerm.toLowerCase();
-        return name.includes(term) || email.includes(term);
-      });
-    
-    return results;
-  } catch (error) {
-    console.error("Error searching users:", error);
-    return [];
-  }
-};
-
 export const getUserById = async (userId: string) => {
   try {
     const userRef = doc(db, "users", userId);
@@ -548,71 +526,266 @@ export const getUserById = async (userId: string) => {
 // ============== FRIEND/CONNECTION SYSTEM ==============
 export const sendFriendRequest = async (senderId: string, receiverId: string) => {
   try {
-    const requestRef = await addDoc(collection(db, "friendRequests"), {
-      senderId,
-      receiverId,
-      status: "pending",
-      createdAt: serverTimestamp(),
+    // Check if already friends or request exists
+    const userRef = doc(db, "users", receiverId);
+    const userSnap = await getDoc(userRef);
+    
+    if (!userSnap.exists()) {
+      throw new Error("User tidak ditemukan");
+    }
+    
+    const userData = userSnap.data();
+    const friends = userData.friends || [];
+    const pendingRequests = userData.pendingFriendRequests || [];
+    
+    if (friends.includes(senderId)) {
+      throw new Error("Sudah berteman dengan user ini");
+    }
+    
+    if (pendingRequests.includes(senderId)) {
+      throw new Error("Friend request sudah dikirim");
+    }
+    
+    // Add to pending requests
+    await updateDoc(userRef, {
+      pendingFriendRequests: arrayUnion(senderId),
     });
-    return requestRef.id;
+    
+    return { success: true, message: "Friend request dikirim" };
   } catch (error) {
     console.error("Error sending friend request:", error);
     throw error;
   }
 };
 
-export const acceptFriendRequest = async (requestId: string, userId1: string, userId2: string) => {
+export const acceptFriendRequest = async (userId: string, friendId: string) => {
   try {
-    const requestRef = doc(db, "friendRequests", requestId);
-    await updateDoc(requestRef, { status: "accepted", acceptedAt: serverTimestamp() });
+    const userRef = doc(db, "users", userId);
+    const friendRef = doc(db, "users", friendId);
     
-    // Create mutual friend connections
-    const connectionRef1 = await addDoc(collection(db, "connections"), {
-      userId: userId1,
-      friendId: userId2,
-      status: "active",
-      createdAt: serverTimestamp(),
+    // Update both users: remove from pending, add to friends
+    await updateDoc(userRef, {
+      pendingFriendRequests: arrayRemove(friendId),
+      friends: arrayUnion(friendId),
     });
     
-    const connectionRef2 = await addDoc(collection(db, "connections"), {
-      userId: userId2,
-      friendId: userId1,
-      status: "active",
-      createdAt: serverTimestamp(),
+    await updateDoc(friendRef, {
+      friends: arrayUnion(userId),
     });
     
-    return { connectionRef1: connectionRef1.id, connectionRef2: connectionRef2.id };
+    return { success: true, message: "Friend request diterima" };
   } catch (error) {
     console.error("Error accepting friend request:", error);
     throw error;
   }
 };
 
-export const getUserConnections = async (userId: string) => {
+export const rejectFriendRequest = async (userId: string, friendId: string) => {
   try {
-    const q = query(
-      collection(db, "connections"),
-      where("userId", "==", userId),
-      where("status", "==", "active")
-    );
-    const snapshot = await getDocs(q);
+    const userRef = doc(db, "users", userId);
     
-    const connections = await Promise.all(
-      snapshot.docs.map(async (doc) => {
-        const friendId = doc.data().friendId;
+    await updateDoc(userRef, {
+      pendingFriendRequests: arrayRemove(friendId),
+    });
+    
+    return { success: true, message: "Friend request ditolak" };
+  } catch (error) {
+    console.error("Error rejecting friend request:", error);
+    throw error;
+  }
+};
+
+export const getUserFriends = async (userId: string) => {
+  try {
+    const userRef = doc(db, "users", userId);
+    const userSnap = await getDoc(userRef);
+    
+    if (!userSnap.exists()) {
+      return [];
+    }
+    
+    const friends = userSnap.data().friends || [];
+    
+    // Get profile data for each friend
+    const friendsData = await Promise.all(
+      friends.map(async (friendId: string) => {
         const friendData = await getUserProfile(friendId);
         return {
-          id: doc.id,
-          friendId,
+          id: friendId,
           ...friendData,
         };
       })
     );
     
-    return connections;
+    return friendsData;
   } catch (error) {
-    console.error("Error fetching connections:", error);
+    console.error("Error fetching user friends:", error);
     return [];
+  }
+};
+
+export const getPendingFriendRequests = async (userId: string) => {
+  try {
+    const userRef = doc(db, "users", userId);
+    const userSnap = await getDoc(userRef);
+    
+    if (!userSnap.exists()) {
+      return [];
+    }
+    
+    const pendingRequests = userSnap.data().pendingFriendRequests || [];
+    
+    // Get profile data for each pending request
+    const requestsData = await Promise.all(
+      pendingRequests.map(async (requesterId: string) => {
+        const requesterData = await getUserProfile(requesterId);
+        return {
+          id: requesterId,
+          ...requesterData,
+        };
+      })
+    );
+    
+    return requestsData;
+  } catch (error) {
+    console.error("Error fetching pending friend requests:", error);
+    return [];
+  }
+};
+
+export const searchUsers = async (searchQuery: string) => {
+  try {
+    if (!searchQuery.trim()) {
+      return [];
+    }
+    
+    const q = query(
+      collection(db, "users"),
+      where("displayName", ">=", searchQuery),
+      where("displayName", "<=", searchQuery + "\uf8ff")
+    );
+    
+    const snapshot = await getDocs(q);
+    
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      createdAt: doc.data().createdAt?.toDate(),
+    }));
+  } catch (error) {
+    console.error("Error searching users:", error);
+    // Fallback: fetch all users dan filter client-side
+    return [];
+  }
+};
+
+export const getPendingMessages = async (userId: string) => {
+  try {
+    const userRef = doc(db, "users", userId);
+    const userSnap = await getDoc(userRef);
+    
+    if (!userSnap.exists()) {
+      return [];
+    }
+    
+    const friends = userSnap.data().friends || [];
+    
+    // Get all messages where userId is receiver
+    const q = query(
+      collection(db, "messages"),
+      where("receiverId", "==", userId),
+      where("read", "==", false)
+    );
+    
+    const snapshot = await getDocs(q);
+    
+    // Filter: only messages from non-friends (not in friends list)
+    const pendingMessages = await Promise.all(
+      snapshot.docs
+        .filter(doc => !friends.includes(doc.data().senderId))
+        .map(async (doc) => {
+          const messageData = doc.data();
+          const senderData = await getUserProfile(messageData.senderId);
+          
+          return {
+            id: doc.id,
+            ...messageData,
+            timestamp: messageData.timestamp?.toDate(),
+            senderData,
+          };
+        })
+    );
+    
+    // Group by sender to get latest message per sender
+    const groupedByChat = new Map();
+    pendingMessages.forEach(msg => {
+      const senderId = msg.senderId;
+      if (!groupedByChat.has(senderId)) {
+        groupedByChat.set(senderId, msg);
+      }
+    });
+    
+    return Array.from(groupedByChat.values()).sort(
+      (a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0)
+    );
+  } catch (error) {
+    console.error("Error fetching pending messages:", error);
+    return [];
+  }
+};
+
+// ============== PRESENCE (ONLINE / LAST SEEN) ==============
+export const setUserOnline = async (userId: string) => {
+  try {
+    const userRef = doc(db, "users", userId);
+    await updateDoc(userRef, {
+      online: true,
+      lastSeen: serverTimestamp(),
+    });
+    return true;
+  } catch (error) {
+    console.error("Error setting user online:", error);
+    return false;
+  }
+};
+
+export const setUserOffline = async (userId: string) => {
+  try {
+    const userRef = doc(db, "users", userId);
+    await updateDoc(userRef, {
+      online: false,
+      lastSeen: serverTimestamp(),
+    });
+    return true;
+  } catch (error) {
+    console.error("Error setting user offline:", error);
+    return false;
+  }
+};
+
+export const sendMessageWithFriendCheck = async (senderId: string, receiverId: string, text: string) => {
+  try {
+    // Check if receiver exists
+    const receiverRef = doc(db, "users", receiverId);
+    const receiverSnap = await getDoc(receiverRef);
+    
+    if (!receiverSnap.exists()) {
+      throw new Error("User penerima tidak ditemukan");
+    }
+    
+    // Send message (regardless of friend status)
+    const messageRef = await addDoc(collection(db, "messages"), {
+      senderId,
+      receiverId,
+      text,
+      timestamp: serverTimestamp(),
+      read: false,
+    });
+    
+    return messageRef.id;
+  } catch (error) {
+    console.error("Error sending message:", error);
+    throw error;
   }
 };
 
@@ -902,4 +1075,4 @@ export const deleteForumPostByAdmin = async (postId: string, userId: string, use
     console.error("Error deleting forum post:", error);
     throw error;
   }
-};;
+};

@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from "react"
 import { onAuthStateChanged, User } from "firebase/auth"
-import { auth, getUserProfile } from "@/lib/firebase" 
+import { auth, getUserProfile, setUserOnline, setUserOffline } from "@/lib/firebase" 
 
 type AuthContextType = {
   user: User | null
@@ -26,12 +26,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Ambil data tambahan (Role) dari database
         const profile = await getUserProfile(authUser.uid)
         setUserProfile(profile)
+        // Mark user online in Firestore presence
+        try { await setUserOnline(authUser.uid) } catch (e) { /* ignore */ }
+        // on unload / signout mark offline
+        const handleVisibility = async () => {
+          if (document.hidden) await setUserOffline(authUser.uid)
+        }
+        window.addEventListener("visibilitychange", handleVisibility)
+        window.addEventListener("beforeunload", async () => { await setUserOffline(authUser.uid) })
       } else {
         setUserProfile(null)
       }
       setLoading(false)
     })
-    return () => unsubscribe()
+    return () => {
+      // cleanup presence listeners and set offline
+      unsubscribe()
+      if (user) {
+        try { setUserOffline(user.uid) } catch (e) { /* ignore */ }
+      }
+      window.removeEventListener("visibilitychange", () => {})
+      window.removeEventListener("beforeunload", () => {})
+    }
   }, [])
 
   return (

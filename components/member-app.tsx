@@ -156,23 +156,24 @@ export function MemberApp() {
           {isMessagingOpen ? (
             <MessagingPage selectedChatId={selectedChat} onBack={handleBack} />
           ) : (
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            <div className="w-full px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 md:py-12">
+              <div className="max-w-7xl mx-auto">
               {activeTab === "home" && (
-                <div className="space-y-8">
-                  <div className="max-w-md">
+                <div className="space-y-6 sm:space-y-8">
+                  <div>
                     <BalanceCard
                       visible={balanceVisible}
                       onToggleVisibility={() => setBalanceVisible(!balanceVisible)}
                     />
                   </div>
 
-                  <div className="max-w-md">
+                  <div>
                     <ActionButtons />
                   </div>
 
                   {/* PPOB */}
                   <div>
-                    <h3 className="text-xl font-bold text-slate-900 mb-6">Layanan Cepat</h3>
+                    <h3 className="text-lg sm:text-xl font-bold text-slate-900 mb-4 sm:mb-6">Layanan Cepat</h3>
                     <PPOBGrid />
                   </div>
 
@@ -201,7 +202,7 @@ export function MemberApp() {
 
                   {/* MARKETPLACE */}
                   <div>
-                    <h3 className="text-xl font-bold text-slate-900 mb-6">Marketplace Lokal</h3>
+                    <h3 className="text-lg sm:text-xl font-bold text-slate-900 mb-4 sm:mb-6">Marketplace Lokal</h3>
                     <MarketplaceWithMap />
                   </div>
                 </div>
@@ -221,6 +222,7 @@ export function MemberApp() {
 
               {activeTab === "profile" && <ProfilePage />}
               {activeTab === "merchant" && <MerchantCenter />}
+              </div>
             </div>
           )}
         </div>

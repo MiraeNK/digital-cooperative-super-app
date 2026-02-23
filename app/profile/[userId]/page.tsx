@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { ArrowLeft, Mail, Users, FileText, Heart } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
-import { getUserById, getArticlesByAuthor, getUserConnections, sendFriendRequest, sendMessage } from "@/lib/firebase"
+import { getUserById, getArticlesByAuthor, getUserFriends, sendFriendRequest, sendMessageWithFriendCheck } from "@/lib/firebase"
 
 export default function UserProfilePage() {
   const params = useParams()
@@ -31,8 +31,8 @@ export default function UserProfilePage() {
           setUserArticles(articles)
         }
 
-        // Get user's connections/friends
-        const connections = await getUserConnections(userId)
+        // Get user's friends/connections
+        const connections = await getUserFriends(userId)
         setUserConnections(connections)
       } catch (error) {
         console.error("Error fetching user data:", error)

@@ -1,6 +1,6 @@
 "use client"
 
-import { BarChart3, TrendingUp, Package, Users, Settings, CheckCircle, FileText, UserCircle } from "lucide-react"
+import { BarChart3, TrendingUp, Package, Users, Settings, CheckCircle, FileText, UserCircle, MessageSquare } from "lucide-react"
 import { useState } from "react"
 import { useAuth } from "@/components/auth-provider"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -13,6 +13,7 @@ interface SidebarProps {
 const adminPages = [
   { id: "overview", label: "Overview", icon: BarChart3 },
   { id: "kyc", label: "Member Approval (KYC)", icon: CheckCircle },
+  { id: "community", label: "Community Posts", icon: MessageSquare },
   { id: "marketing", label: "Digital Marketing", icon: TrendingUp },
   { id: "content", label: "Content Manager", icon: FileText },
   { id: "inventory", label: "Inventory", icon: Package },

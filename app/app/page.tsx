@@ -14,7 +14,7 @@ import { WriterDashboard } from "@/components/writer-dashboard"
 
 export default function AppPage() {
   const router = useRouter()
-  const { userProfile, loading } = useAuth()
+  const { userProfile, loading, user } = useAuth()
   
   // State untuk mengontrol tampilan yang sedang aktif (bukan role user)
   // Default 'member' agar aman
@@ -22,10 +22,11 @@ export default function AppPage() {
 
   // 1. Cek Login & Redirect
   useEffect(() => {
-    if (!loading && !userProfile) {
+    // Redirect to auth only when auth check finished and there's no authenticated user
+    if (!loading && !user) {
       router.push("/auth")
     }
-  }, [loading, userProfile, router])
+  }, [loading, user, router])
 
   // 2. Fungsi Logout
   const handleLogout = async () => {
@@ -38,7 +39,7 @@ export default function AppPage() {
   }
 
   // 3. Loading State (Tampilkan spinner di tengah layar kosong)
-  if (loading || !userProfile) {
+  if (loading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="animate-spin text-primary w-8 h-8" />
@@ -46,8 +47,8 @@ export default function AppPage() {
     )
   }
 
-  // Ambil role asli dari database
-  const role = userProfile.role || "member"
+  // Ambil role dari profile jika tersedia, fallback ke 'member' saat profile belum ada
+  const role = (userProfile && userProfile.role) ? userProfile.role : "member"
 
   return (
     <div className="min-h-screen bg-background">

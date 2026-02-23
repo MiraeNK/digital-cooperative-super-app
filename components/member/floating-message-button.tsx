@@ -1,7 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { MessageSquare, X, ChevronRight } from "lucide-react"
+import { useAuth } from "@/components/auth-provider"
+import { getPendingMessages, getUserChats } from "@/lib/firebase"
 
 interface UnreadMessage {
   id: string
@@ -17,33 +19,14 @@ interface FloatingMessageButtonProps {
   unreadMessages?: UnreadMessage[]
 }
 
-export default function FloatingMessageButton({
-  onOpenFullChat,
-  unreadMessages = [
-    {
-      id: "admin",
-      name: "Admin Koperasi",
-      avatar: "A",
-      message: "Info pembagian SHU & Notifikasi...",
-      timestamp: "09:15",
-      unreadCount: 2,
-    },
-    {
-      id: "pelanggan",
-      name: "Layanan Pelanggan",
-      avatar: "L",
-      message: "Transaksi pending sedang dicek...",
-      timestamp: "13:45",
-      unreadCount: 1,
-    },
-  ],
-}: FloatingMessageButtonProps) {
+export default function FloatingMessageButton({ onOpenFullChat, unreadMessages }: FloatingMessageButtonProps) {
+  const { user } = useAuth()
   const [isOpen, setIsOpen] = useState(false)
-  const totalUnread = unreadMessages.reduce((sum, msg) => sum + msg.unreadCount, 0)
+  const internalUnread = useUnreadMessages(user?.uid)
 
-  const handleClose = () => {
-    setIsOpen(false)
-  }
+  const totalUnread = (unreadMessages || internalUnread).reduce((sum, msg) => sum + msg.unreadCount, 0)
+
+  const handleClose = () => setIsOpen(false)
 
   return (
     <>
@@ -103,7 +86,7 @@ export default function FloatingMessageButton({
 
             {/* Messages List */}
             <div className="divide-y divide-slate-200 max-h-64 overflow-y-auto">
-              {unreadMessages.map((msg) => (
+              {(unreadMessages || internalUnread).map((msg) => (
                 <button
                   key={msg.id}
                   onClick={() => {
@@ -156,3 +139,57 @@ export default function FloatingMessageButton({
     </>
   )
 }
+
+  // Helper hook: fetch unread/pending messages for floating button
+  function useUnreadMessages(userId?: string) {
+    const [items, setItems] = useState<UnreadMessage[]>([])
+
+    useEffect(() => {
+      let mounted = true
+      let intervalId: any = null
+
+      const fetchMessages = async () => {
+        if (!userId) return
+        try {
+          const pending = await getPendingMessages(userId)
+          const chats = await getUserChats(userId)
+
+          const pendingMapped: UnreadMessage[] = pending.map((p: any) => ({
+            id: p.senderId,
+            name: p.senderData?.displayName || "User",
+            avatar: p.senderData?.displayName?.charAt(0).toUpperCase() || "U",
+            message: p.text || "",
+            timestamp: p.timestamp ? new Date(p.timestamp).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) : "",
+            unreadCount: 1,
+          }))
+
+          const chatsMapped: UnreadMessage[] = chats
+            .filter((c: any) => !c.read)
+            .map((c: any) => ({
+              id: c.userId,
+              name: c.displayName || c.email || "User",
+              avatar: (c.displayName?.charAt(0) || "U").toUpperCase(),
+              message: c.lastMessage || "",
+              timestamp: c.lastMessageTime ? new Date(c.lastMessageTime).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) : "",
+              unreadCount: c.read ? 0 : 1,
+          }))
+
+          const combined = [...pendingMapped, ...chatsMapped].slice(0, 10)
+
+          if (mounted) setItems(combined)
+        } catch (err) {
+          console.error("Error fetching unread messages:", err)
+        }
+      }
+
+      fetchMessages()
+      if (userId) intervalId = setInterval(fetchMessages, 15000)
+
+      return () => {
+        mounted = false
+        if (intervalId) clearInterval(intervalId)
+      }
+    }, [userId])
+
+    return items
+  }

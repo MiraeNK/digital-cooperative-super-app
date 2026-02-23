@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Heart, MessageCircle, MessageSquare, Badge, ThumbsUp, ThumbsDown, Trash2, ChevronLeft, ChevronRight, Plus, Loader2 } from "lucide-react"
 import FloatingMessageButton from "./floating-message-button"
+import PublicProfile from "./public-profile"
 import { useAuth } from "@/components/auth-provider"
 import { getUserProfile, createForumPost, getForumPosts, addCommentToPost, deleteForumPost, deleteComment, voteOnPost, getForumPostsWithAuthorData, deleteForumPostByAdmin } from "@/lib/firebase"
 
@@ -49,6 +50,7 @@ export default function CommunityPage({ onChatSelect, userRole = "member" }: Com
   const { user, userProfile } = useAuth()
   const router = useRouter()
   const [userCache, setUserCache] = useState<{ [key: string]: any }>({})
+  const [viewingProfileId, setViewingProfileId] = useState<string | null>(null)
   
   const [showComments, setShowComments] = useState<string | null>(null)
   const [commentInput, setCommentInput] = useState("")
@@ -413,16 +415,29 @@ export default function CommunityPage({ onChatSelect, userRole = "member" }: Com
     handleAddComment(postId)
   }
 
+  // Show public profile modal if viewing
+  if (viewingProfileId) {
+    return (
+      <div className="w-full px-3 sm:px-4 md:px-6 py-4">
+        <PublicProfile
+          userId={viewingProfileId}
+          onBack={() => setViewingProfileId(null)}
+          onMessage={onChatSelect}
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="w-full">
-      <FloatingMessageButton onChatSelect={onChatSelect} />
+      <FloatingMessageButton onOpenFullChat={onChatSelect} />
 
       {/* Forum Content */}
-      <div className="px-4 md:px-6 max-w-6xl mx-auto space-y-6">
+      <div className="px-3 sm:px-4 md:px-6 max-w-6xl mx-auto space-y-4 sm:space-y-6 pb-20">
         {/* Pinned Carousel Section */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between px-4">
-            <h3 className="text-sm font-semibold text-slate-600">PINNED</h3>
+        <div className="space-y-3 sm:space-y-4">
+          <div className="flex items-center justify-between px-2 sm:px-4">
+            <h3 className="text-xs sm:text-sm font-semibold text-slate-600 uppercase">PINNED</h3>
             <div className="flex gap-1">
               <button
                 onClick={() => setCarouselIndex((prev) => (prev === 0 ? carouselItems.length - 1 : prev - 1))}
@@ -439,7 +454,7 @@ export default function CommunityPage({ onChatSelect, userRole = "member" }: Com
             </div>
           </div>
 
-          <div className="h-48 rounded-lg overflow-hidden shadow-md transition-all">
+          <div className="h-40 sm:h-48 rounded-lg overflow-hidden shadow-md transition-all">
             <div className="relative w-full h-full">
               <img 
                 src={carouselItems[carouselIndex].image || "/placeholder.svg"} 
@@ -447,9 +462,9 @@ export default function CommunityPage({ onChatSelect, userRole = "member" }: Com
                 className="w-full h-full object-cover"
               />
               <div className={`absolute inset-0 bg-gradient-to-r ${carouselItems[carouselIndex].color} opacity-70`} />
-              <div className="absolute inset-0 p-6 flex flex-col justify-end text-white">
-                <h4 className="font-bold text-xl mb-2">{carouselItems[carouselIndex].title}</h4>
-                <p className="text-sm line-clamp-2">{carouselItems[carouselIndex].content}</p>
+              <div className="absolute inset-0 p-4 sm:p-6 flex flex-col justify-end text-white">
+                <h4 className="font-bold text-base sm:text-xl mb-1 sm:mb-2">{carouselItems[carouselIndex].title}</h4>
+                <p className="text-xs sm:text-sm line-clamp-2">{carouselItems[carouselIndex].content}</p>
               </div>
             </div>
           </div>
@@ -466,7 +481,7 @@ export default function CommunityPage({ onChatSelect, userRole = "member" }: Com
 
         {/* New Thread Form */}
         {showNewThread && (
-          <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 space-y-4">
+          <div className="p-3 sm:p-4 bg-slate-50 rounded-lg border border-slate-200 space-y-3 sm:space-y-4">
             {/* Thread Type Selection */}
             <div className="flex gap-2">
               <button
@@ -592,7 +607,7 @@ export default function CommunityPage({ onChatSelect, userRole = "member" }: Com
                 <div className="p-4 border-b border-slate-200">
                   <div className="flex items-start gap-3 mb-3">
                     <button
-                      onClick={() => router.push(`/profile/${post.authorId}`)}
+                      onClick={() => setViewingProfileId(post.authorId)}
                       className="w-10 h-10 flex-shrink-0 rounded-full bg-primary flex items-center justify-center text-white font-bold text-sm hover:opacity-80 transition"
                     >
                       {post.author.charAt(0)}
@@ -600,7 +615,7 @@ export default function CommunityPage({ onChatSelect, userRole = "member" }: Com
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <button
-                          onClick={() => router.push(`/profile/${post.authorId}`)}
+                          onClick={() => setViewingProfileId(post.authorId)}
                           className="font-semibold text-slate-900 hover:text-primary transition"
                         >
                           {post.author}
@@ -609,13 +624,18 @@ export default function CommunityPage({ onChatSelect, userRole = "member" }: Com
                       </div>
                       <p className="text-xs text-slate-500">{post.timestamp}</p>
                     </div>
-                    {userRole === "admin" && (
+                    {(userRole_ === "admin" || (user && post.authorId === user.uid)) && (
                       <button
                         onClick={() => deletePost(post.id)}
-                        className="text-slate-400 hover:text-red-500 transition p-1"
-                        title="Delete post"
+                        disabled={deletingPostId === post.id}
+                        className="text-slate-400 hover:text-red-500 transition p-1 disabled:opacity-50"
+                        title={userRole_ === "admin" ? "Delete post (Admin)" : "Delete your post"}
                       >
-                        <Trash2 className="w-4 h-4" />
+                        {deletingPostId === post.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-4 h-4" />
+                        )}
                       </button>
                     )}
                   </div>
