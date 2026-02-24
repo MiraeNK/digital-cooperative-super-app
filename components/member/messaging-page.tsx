@@ -40,6 +40,16 @@ interface Chat {
   online: boolean
 }
 
+interface PendingMessage {
+  id: string
+  senderId: string
+  receiverId: string
+  text: string
+  timestamp?: Date
+  read: boolean
+  senderData?: any
+}
+
 interface MessagingPageProps {
   selectedChatId: string | null
   onBack: () => void
@@ -71,7 +81,7 @@ export default function MessagingPage({ selectedChatId, onBack }: MessagingPageP
 
   // Data states
   const [chats, setChats] = useState<Chat[]>([])
-  const [pendingMessages, setPendingMessages] = useState<any[]>([])
+  const [pendingMessages, setPendingMessages] = useState<PendingMessage[]>([])
   const [pendingRequests, setPendingRequests] = useState<any[]>([])
   const [selectedChatInternal, setSelectedChatInternal] = useState<string>(selectedChatId || "")
   const [messages, setMessages] = useState<Message[]>([])
