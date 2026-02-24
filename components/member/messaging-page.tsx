@@ -326,9 +326,9 @@ export default function MessagingPage({ selectedChatId, onBack }: MessagingPageP
   })
 
   return (
-    <div className="flex h-full bg-gradient-to-br from-blue-50 to-indigo-50">
+    <div className="flex h-full bg-white">
       {/* Left Sidebar - Chat List */}
-      <div className="w-full lg:w-96 bg-white border-r border-slate-200 flex flex-col max-h-full overflow-hidden">
+      <div className="w-full sm:w-80 bg-white border-r border-slate-200 flex flex-col max-h-full overflow-hidden">
         {/* Header */}
         <div className="p-4 border-b border-slate-200">
           <h2 className="text-2xl font-bold text-slate-900 mb-4">Pesan</h2>
@@ -516,7 +516,7 @@ export default function MessagingPage({ selectedChatId, onBack }: MessagingPageP
 
       {/* Right Side - Chat Detail */}
       {currentChat ? (
-        <div className="flex-1 flex flex-col bg-white hidden lg:flex">
+        <div className="hidden sm:flex flex-1 flex-col bg-white">
           {/* Chat Header */}
           <div className="px-6 py-4 bg-gradient-to-r from-primary to-blue-700 text-white flex items-center justify-between border-b border-blue-600 flex-shrink-0">
             <div className="flex items-center gap-4">

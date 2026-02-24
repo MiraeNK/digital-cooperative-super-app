@@ -21,34 +21,38 @@ import {
 } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "",
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "",
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "",
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "",
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "",
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "",
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
 // Validate that Firebase config is properly loaded
-const isConfigValid = firebaseConfig.apiKey && firebaseConfig.authDomain && firebaseConfig.projectId;
+const isConfigValid = Boolean(
+  firebaseConfig.apiKey && 
+  firebaseConfig.authDomain && 
+  firebaseConfig.projectId
+);
 
 let app: any = null;
 let auth: any = null;
 let db: any = null;
 let googleProvider: any = null;
 
-try {
-  if (isConfigValid) {
+if (isConfigValid) {
+  try {
     app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
     auth = getAuth(app);
     db = getFirestore(app);
     googleProvider = new GoogleAuthProvider();
-  } else {
-    console.warn("Firebase configuration is incomplete. Using development mode without Firebase.");
+    console.log("[Firebase] Initialized successfully");
+  } catch (error) {
+    console.error("[Firebase] Initialization error:", error);
   }
-} catch (error) {
-  console.error("Firebase initialization error:", error);
-  console.warn("App will run in development mode without Firebase backend");
+} else {
+  console.warn("[Firebase] Configuration incomplete - running in dev mode without backend");
 }
 
 export { auth, db, googleProvider };
@@ -58,23 +62,17 @@ export const createUserProfile = async (user: any, name: string) => {
   if (!user || !db) return;
   
   const userRef = doc(db, "users", user.uid);
-  const userSnap = await getDoc(userRef);
-
-  if (!userSnap.exists()) {
-    try {
-      await setDoc(userRef, {
-        uid: user.uid,
-        email: user.email,
-        displayName: name || user.displayName || "Anggota",
-        role: "member",
-        createdAt: serverTimestamp(),
-      });
-    } catch (error) {
-      console.error("Error creating user profile:", error);
-    }
-  }
+  const userData = {
+    email: user.email,
+    displayName: name,
+    role: "member",
+    createdAt: serverTimestamp(),
+  };
+  
+  await setDoc(userRef, userData);
 };
 
+// Get user profile
 export const getUserProfile = async (uid: string) => {
   if (!db) return null;
   const userRef = doc(db, "users", uid);
@@ -83,29 +81,14 @@ export const getUserProfile = async (uid: string) => {
   return null;
 };
 
+// Update user profile data
 export const updateUserProfileData = async (uid: string, data: any) => {
   if (!db) throw new Error("Database not initialized");
   const userRef = doc(db, "users", uid);
-  try {
-    await updateDoc(userRef, {
-      ...data,
-      updatedAt: serverTimestamp(),
-    });
-    return true;
-  } catch (error) {
-    console.error("Error updating profile:", error);
-    throw error;
-  }
+  await updateDoc(userRef, data);
 };
 
-export const generateMemberId = (role: string) => {
-  const prefix = role === "admin" ? "ADM" : "KOP";
-  const year = new Date().getFullYear();
-  const random = Math.floor(100000 + Math.random() * 900000); // 6 digit random
-  return `${prefix}-${year}-${random}`;
-};
-
-// ============== ARTICLES FUNCTIONS ==============
+// Create article
 export const createArticle = async (userId: string, articleData: any) => {
   if (!db) throw new Error("Database not initialized");
   try {
@@ -124,6 +107,7 @@ export const createArticle = async (userId: string, articleData: any) => {
   }
 };
 
+// Get articles with pagination
 export const getArticles = async (limit_count: number = 10) => {
   if (!db) return [];
   try {
@@ -133,11 +117,9 @@ export const getArticles = async (limit_count: number = 10) => {
       limit(limit_count)
     );
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({
+    return snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
-      createdAt: doc.data().createdAt?.toDate(),
-      updatedAt: doc.data().updatedAt?.toDate(),
     }));
   } catch (error) {
     console.error("Error fetching articles:", error);
@@ -145,6 +127,7 @@ export const getArticles = async (limit_count: number = 10) => {
   }
 };
 
+// Get article by ID
 export const getArticleById = async (articleId: string) => {
   if (!db) return null;
   try {
@@ -160,6 +143,7 @@ export const getArticleById = async (articleId: string) => {
   }
 };
 
+// Get articles by author
 export const getArticlesByAuthor = async (authorId: string) => {
   if (!db) return [];
   try {
@@ -169,11 +153,9 @@ export const getArticlesByAuthor = async (authorId: string) => {
       orderBy("createdAt", "desc")
     );
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({
+    return snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
-      createdAt: doc.data().createdAt?.toDate(),
-      updatedAt: doc.data().updatedAt?.toDate(),
     }));
   } catch (error) {
     console.error("Error fetching author articles:", error);
@@ -181,6 +163,7 @@ export const getArticlesByAuthor = async (authorId: string) => {
   }
 };
 
+// Update article
 export const updateArticle = async (articleId: string, data: any) => {
   if (!db) throw new Error("Database not initialized");
   try {
@@ -189,36 +172,34 @@ export const updateArticle = async (articleId: string, data: any) => {
       ...data,
       updatedAt: serverTimestamp(),
     });
-    return true;
   } catch (error) {
     console.error("Error updating article:", error);
     throw error;
   }
 };
 
+// Delete article
 export const deleteArticle = async (articleId: string) => {
   if (!db) throw new Error("Database not initialized");
   try {
     await deleteDoc(doc(db, "articles", articleId));
-    return true;
   } catch (error) {
     console.error("Error deleting article:", error);
     throw error;
   }
 };
 
-// ============== FORUM POSTS FUNCTIONS ==============
+// Create forum post
 export const createForumPost = async (userId: string, postData: any) => {
   if (!db) throw new Error("Database not initialized");
   try {
     const docRef = await addDoc(collection(db, "forumPosts"), {
       ...postData,
-      authorId: userId,
+      userId,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
       upvotes: 0,
       downvotes: 0,
-      commentsCount: 0,
     });
     return docRef.id;
   } catch (error) {
@@ -227,6 +208,7 @@ export const createForumPost = async (userId: string, postData: any) => {
   }
 };
 
+// Get forum posts
 export const getForumPosts = async () => {
   if (!db) return [];
   try {
@@ -235,11 +217,9 @@ export const getForumPosts = async () => {
       orderBy("createdAt", "desc")
     );
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({
+    return snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
-      createdAt: doc.data().createdAt?.toDate(),
-      updatedAt: doc.data().updatedAt?.toDate(),
     }));
   } catch (error) {
     console.error("Error fetching forum posts:", error);
@@ -247,6 +227,7 @@ export const getForumPosts = async () => {
   }
 };
 
+// Get forum post by ID
 export const getForumPostById = async (postId: string) => {
   if (!db) return null;
   try {
@@ -262,6 +243,7 @@ export const getForumPostById = async (postId: string) => {
   }
 };
 
+// Update forum post
 export const updateForumPost = async (postId: string, data: any) => {
   if (!db) throw new Error("Database not initialized");
   try {
@@ -270,25 +252,24 @@ export const updateForumPost = async (postId: string, data: any) => {
       ...data,
       updatedAt: serverTimestamp(),
     });
-    return true;
   } catch (error) {
     console.error("Error updating forum post:", error);
     throw error;
   }
 };
 
+// Delete forum post
 export const deleteForumPost = async (postId: string) => {
   if (!db) throw new Error("Database not initialized");
   try {
     await deleteDoc(doc(db, "forumPosts", postId));
-    return true;
   } catch (error) {
     console.error("Error deleting forum post:", error);
     throw error;
   }
 };
 
-// ============== COMMENTS FUNCTIONS ==============
+// Add comment to post
 export const addCommentToPost = async (postId: string, userId: string, content: string) => {
   if (!db) throw new Error("Database not initialized");
   try {
@@ -298,22 +279,16 @@ export const addCommentToPost = async (postId: string, userId: string, content: 
     }
 
     const docRef = await addDoc(collection(db, `forumPosts/${postId}/comments`), {
-      authorId: userId,
+      userId,
       content,
       createdAt: serverTimestamp(),
-      upvotes: 0,
-      downvotes: 0,
     });
-    
-    // Update comment count di post
+
     const postRef = doc(db, "forumPosts", postId);
-    const postSnap = await getDoc(postRef);
-    if (postSnap.exists()) {
-      await updateDoc(postRef, {
-        commentsCount: (postSnap.data().commentsCount || 0) + 1,
-      });
-    }
-    
+    await updateDoc(postRef, {
+      commentCount: (await getDoc(postRef)).data()?.commentCount || 0 + 1,
+    });
+
     return docRef.id;
   } catch (error) {
     console.error("Error adding comment:", error);
@@ -321,6 +296,7 @@ export const addCommentToPost = async (postId: string, userId: string, content: 
   }
 };
 
+// Get comments for post
 export const getCommentsForPost = async (postId: string) => {
   if (!db) return [];
   try {
@@ -329,10 +305,9 @@ export const getCommentsForPost = async (postId: string) => {
       orderBy("createdAt", "desc")
     );
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({
+    return snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
-      createdAt: doc.data().createdAt?.toDate(),
     }));
   } catch (error) {
     console.error("Error fetching comments:", error);
@@ -340,28 +315,18 @@ export const getCommentsForPost = async (postId: string) => {
   }
 };
 
+// Delete comment
 export const deleteComment = async (postId: string, commentId: string) => {
   if (!db) throw new Error("Database not initialized");
   try {
     await deleteDoc(doc(db, `forumPosts/${postId}/comments`, commentId));
-    
-    // Update comment count
-    const postRef = doc(db, "forumPosts", postId);
-    const postSnap = await getDoc(postRef);
-    if (postSnap.exists()) {
-      await updateDoc(postRef, {
-        commentsCount: Math.max(0, (postSnap.data().commentsCount || 1) - 1),
-      });
-    }
-    
-    return true;
   } catch (error) {
     console.error("Error deleting comment:", error);
     throw error;
   }
 };
 
-// ============== MESSAGES FUNCTIONS ==============
+// Send message
 export const sendMessage = async (senderId: string, receiverId: string, text: string) => {
   if (!db) throw new Error("Database not initialized");
   try {
@@ -373,6 +338,23 @@ export const sendMessage = async (senderId: string, receiverId: string, text: st
       timestamp: serverTimestamp(),
       read: false,
     });
+
+    // Update chat list for both users
+    const senderChatRef = doc(db, "chats", senderId, "chats", receiverId);
+    const receiverChatRef = doc(db, "chats", receiverId, "chats", senderId);
+
+    await setDoc(senderChatRef, {
+      lastMessage: text,
+      lastMessageTime: serverTimestamp(),
+      unread: false,
+    }, { merge: true });
+
+    await setDoc(receiverChatRef, {
+      lastMessage: text,
+      lastMessageTime: serverTimestamp(),
+      unread: true,
+    }, { merge: true });
+
     return messageRef.id;
   } catch (error) {
     console.error("Error sending message:", error);
@@ -380,57 +362,50 @@ export const sendMessage = async (senderId: string, receiverId: string, text: st
   }
 };
 
+// Get conversation between two users
 export const getConversation = async (userId1: string, userId2: string) => {
   if (!db) return [];
   try {
     const q = query(
       collection(db, "messages"),
       where("senderId", "in", [userId1, userId2]),
-      orderBy("timestamp", "desc")
+      orderBy("timestamp", "asc")
     );
     const snapshot = await getDocs(q);
-    
-    // Filter untuk hanya messages antara 2 user ini
     return snapshot.docs
-      .filter(doc => {
-        const data = doc.data();
-        return (data.senderId === userId1 && data.receiverId === userId2) ||
-               (data.senderId === userId2 && data.receiverId === userId1);
-      })
-      .map(doc => ({
+      .filter(doc => (doc.data().senderId === userId1 && doc.data().receiverId === userId2) ||
+                      (doc.data().senderId === userId2 && doc.data().receiverId === userId1))
+      .map((doc) => ({
         id: doc.id,
         ...doc.data(),
-        timestamp: doc.data().timestamp?.toDate(),
-      }))
-      .reverse();
+      }));
   } catch (error) {
     console.error("Error fetching conversation:", error);
     return [];
   }
 };
 
+// Mark message as read
 export const markMessageAsRead = async (messageId: string) => {
   if (!db) throw new Error("Database not initialized");
   try {
     const docRef = doc(db, "messages", messageId);
     await updateDoc(docRef, { read: true });
-    return true;
   } catch (error) {
     console.error("Error marking message as read:", error);
     throw error;
   }
 };
 
-// ============== USERS/MEMBERS FUNCTIONS ==============
+// Get all members
 export const getAllMembers = async () => {
   if (!db) return [];
   try {
     const q = query(collection(db, "users"), where("role", "==", "member"));
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({
+    return snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
-      createdAt: doc.data().createdAt?.toDate(),
     }));
   } catch (error) {
     console.error("Error fetching members:", error);
@@ -438,124 +413,50 @@ export const getAllMembers = async () => {
   }
 };
 
+// Get member stats
 export const getMemberStats = async () => {
   if (!db) return { totalMembers: 0, totalWriters: 0, activeMembers: 0 };
   try {
     const memberQuery = query(collection(db, "users"), where("role", "==", "member"));
-    const memberSnap = await getDocs(memberQuery);
-    
     const writerQuery = query(collection(db, "users"), where("role", "==", "writer"));
+    
+    const memberSnap = await getDocs(memberQuery);
     const writerSnap = await getDocs(writerQuery);
     
     return {
       totalMembers: memberSnap.size,
       totalWriters: writerSnap.size,
-      activeMembers: memberSnap.docs.filter(doc => doc.data().status !== "inactive").length,
+      activeMembers: memberSnap.docs.filter(doc => doc.data().online).length,
     };
   } catch (error) {
-    console.error("Error fetching member stats:", error);
+    console.error("Error fetching stats:", error);
     return { totalMembers: 0, totalWriters: 0, activeMembers: 0 };
   }
 };
 
-// ============== VOTE FUNCTIONS ==============
+// Vote on post
 export const voteOnPost = async (postId: string, userId: string, voteType: "upvote" | "downvote") => {
   if (!db) throw new Error("Database not initialized");
   try {
     const postRef = doc(db, "forumPosts", postId);
-    const postSnap = await getDoc(postRef);
-    
-    if (!postSnap.exists()) return false;
-    
-    const currentData = postSnap.data();
-    const upvotes = currentData.upvotes || 0;
-    const downvotes = currentData.downvotes || 0;
-    
-    if (voteType === "upvote") {
-      await updateDoc(postRef, { upvotes: upvotes + 1 });
-    } else {
-      await updateDoc(postRef, { downvotes: downvotes + 1 });
-    }
-    
-    return true;
+    const voteField = voteType === "upvote" ? "upvotes" : "downvotes";
+    await updateDoc(postRef, {
+      [voteField]: arrayUnion(userId),
+    });
   } catch (error) {
     console.error("Error voting on post:", error);
     throw error;
   }
 };
 
-// ============== WRITER STATS FUNCTIONS ==============
-export const getWriterStats = async (writerId: string) => {
-  try {
-    const articlesQuery = query(
-      collection(db, "articles"),
-      where("authorId", "==", writerId)
-    );
-    const articlesSnap = await getDocs(articlesQuery);
-    
-    let totalViews = 0;
-    let totalLikes = 0;
-    
-    articlesSnap.docs.forEach(doc => {
-      totalViews += doc.data().views || 0;
-      totalLikes += doc.data().likes || 0;
-    });
-    
-    return {
-      totalArticles: articlesSnap.size,
-      totalViews,
-      totalLikes,
-      averageViewsPerArticle: articlesSnap.size > 0 ? Math.round(totalViews / articlesSnap.size) : 0,
-    };
-  } catch (error) {
-    console.error("Error fetching writer stats:", error);
-    return { totalArticles: 0, totalViews: 0, totalLikes: 0, averageViewsPerArticle: 0 };
-  }
-};
-
-// ============== ENHANCED COMMENT FUNCTIONS WITH USER DATA ==============
-export const getCommentsForPostWithUserData = async (postId: string) => {
-  try {
-    const q = query(
-      collection(db, `forumPosts/${postId}/comments`),
-      orderBy("createdAt", "desc")
-    );
-    const snapshot = await getDocs(q);
-    
-    const commentsWithUserData = await Promise.all(
-      snapshot.docs.map(async (doc) => {
-        const commentData = doc.data();
-        const userData = await getUserProfile(commentData.authorId);
-        return {
-          id: doc.id,
-          ...commentData,
-          createdAt: commentData.createdAt?.toDate(),
-          author: userData?.displayName || "Anonymous",
-          authorId: commentData.authorId,
-          avatar: userData?.avatar || null,
-        };
-      })
-    );
-    
-    return commentsWithUserData;
-  } catch (error) {
-    console.error("Error fetching comments with user data:", error);
-    return [];
-  }
-};
-
-// ============== USER SEARCH & DISCOVERY FUNCTIONS ==============
+// Get user by ID
 export const getUserById = async (userId: string) => {
   if (!db) return null;
   try {
     const userRef = doc(db, "users", userId);
     const userSnap = await getDoc(userRef);
     if (userSnap.exists()) {
-      return {
-        id: userSnap.id,
-        ...userSnap.data(),
-        createdAt: userSnap.data().createdAt?.toDate(),
-      };
+      return { id: userSnap.id, ...userSnap.data() };
     }
     return null;
   } catch (error) {
@@ -564,141 +465,99 @@ export const getUserById = async (userId: string) => {
   }
 };
 
-// ============== FRIEND/CONNECTION SYSTEM ==============
+// Send friend request
 export const sendFriendRequest = async (senderId: string, receiverId: string) => {
   if (!db) throw new Error("Database not initialized");
   try {
     // Check if already friends or request exists
     const userRef = doc(db, "users", receiverId);
-    const userSnap = await getDoc(userRef);
+    const userData = (await getDoc(userRef)).data();
     
-    if (!userSnap.exists()) {
-      throw new Error("User tidak ditemukan");
-    }
-    
-    const userData = userSnap.data();
-    const friends = userData.friends || [];
-    const pendingRequests = userData.pendingFriendRequests || [];
-    
-    if (friends.includes(senderId)) {
-      throw new Error("Sudah berteman dengan user ini");
-    }
-    
-    if (pendingRequests.includes(senderId)) {
-      throw new Error("Friend request sudah dikirim");
+    if (userData?.friends?.includes(senderId)) {
+      throw new Error("Already friends");
     }
     
     // Add to pending requests
     await updateDoc(userRef, {
-      pendingFriendRequests: arrayUnion(senderId),
+      pendingRequests: arrayUnion(senderId),
     });
-    
-    return { success: true, message: "Friend request dikirim" };
   } catch (error) {
     console.error("Error sending friend request:", error);
     throw error;
   }
 };
 
+// Accept friend request
 export const acceptFriendRequest = async (userId: string, friendId: string) => {
   if (!db) throw new Error("Database not initialized");
   try {
     const userRef = doc(db, "users", userId);
     const friendRef = doc(db, "users", friendId);
     
-    // Update both users: remove from pending, add to friends
     await updateDoc(userRef, {
-      pendingFriendRequests: arrayRemove(friendId),
       friends: arrayUnion(friendId),
+      pendingRequests: arrayRemove(friendId),
     });
     
     await updateDoc(friendRef, {
       friends: arrayUnion(userId),
     });
-    
-    return { success: true, message: "Friend request diterima" };
   } catch (error) {
     console.error("Error accepting friend request:", error);
     throw error;
   }
 };
 
+// Reject friend request
 export const rejectFriendRequest = async (userId: string, friendId: string) => {
   if (!db) throw new Error("Database not initialized");
   try {
     const userRef = doc(db, "users", userId);
-    
     await updateDoc(userRef, {
-      pendingFriendRequests: arrayRemove(friendId),
+      pendingRequests: arrayRemove(friendId),
     });
-    
-    return { success: true, message: "Friend request ditolak" };
   } catch (error) {
     console.error("Error rejecting friend request:", error);
     throw error;
   }
 };
 
+// Get user friends
 export const getUserFriends = async (userId: string) => {
   if (!db) return [];
   try {
     const userRef = doc(db, "users", userId);
-    const userSnap = await getDoc(userRef);
-    
-    if (!userSnap.exists()) {
-      return [];
-    }
-    
-    const friends = userSnap.data().friends || [];
-    
-    // Get profile data for each friend
-    const friendsData = await Promise.all(
-      friends.map(async (friendId: string) => {
-        const friendData = await getUserProfile(friendId);
-        return {
-          id: friendId,
-          ...friendData,
-        };
-      })
-    );
-    
-    return friendsData;
+    const userData = (await getDoc(userRef)).data();
+    return userData?.friends || [];
   } catch (error) {
-    console.error("Error fetching user friends:", error);
+    console.error("Error fetching friends:", error);
     return [];
   }
 };
 
+// Get pending friend requests
 export const getPendingFriendRequests = async (userId: string) => {
   if (!db) return [];
   try {
     const userRef = doc(db, "users", userId);
-    const userSnap = await getDoc(userRef);
+    const userData = (await getDoc(userRef)).data();
+    const pendingIds = userData?.pendingRequests || [];
     
-    if (!userSnap.exists()) {
-      return [];
-    }
-    
-    const pendingRequests = userSnap.data().pendingFriendRequests || [];
-    
-    // Get profile data for each pending request
-    const requestsData = await Promise.all(
-      pendingRequests.map(async (requesterId: string) => {
-        const requesterData = await getUserProfile(requesterId);
-        return {
-          id: requesterId,
-          ...requesterData,
-        };
+    const requests = await Promise.all(
+      pendingIds.map(async (id: string) => {
+        const userData = await getUserProfile(id);
+        return { id, ...userData };
       })
     );
     
-    return requestsData;
+    return requests;
   } catch (error) {
-    console.error("Error fetching pending friend requests:", error);
+    console.error("Error fetching pending requests:", error);
     return [];
   }
 };
 
+// Search users
 export const searchUsers = async (searchQuery: string) => {
   if (!db) return [];
   try {
@@ -713,84 +572,50 @@ export const searchUsers = async (searchQuery: string) => {
     );
     
     const snapshot = await getDocs(q);
-    
-    return snapshot.docs.map(doc => ({
+    return snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
-      createdAt: doc.data().createdAt?.toDate(),
     }));
   } catch (error) {
     console.error("Error searching users:", error);
-    // Fallback: fetch all users dan filter client-side
     return [];
   }
 };
 
+// Get pending messages
 export const getPendingMessages = async (userId: string) => {
   if (!db) return [];
   try {
     const userRef = doc(db, "users", userId);
-    const userSnap = await getDoc(userRef);
+    const userData = (await getDoc(userRef)).data();
+    const pendingMessageIds = userData?.pendingMessages || [];
     
-    if (!userSnap.exists()) {
-      return [];
-    }
-    
-    const friends = userSnap.data().friends || [];
-    
-    // Get all messages where userId is receiver
-    const q = query(
-      collection(db, "messages"),
-      where("receiverId", "==", userId),
-      where("read", "==", false)
+    const messages = await Promise.all(
+      pendingMessageIds.map(async (msgId: string) => {
+        const msgRef = doc(db, "messages", msgId);
+        const msgData = (await getDoc(msgRef)).data();
+        const senderData = await getUserProfile(msgData?.senderId);
+        return {
+          id: msgId,
+          ...msgData,
+          senderData,
+        };
+      })
     );
     
-    const snapshot = await getDocs(q);
-    
-    // Filter: only messages from non-friends (not in friends list)
-    const pendingMessages = await Promise.all(
-      snapshot.docs
-        .filter(doc => !friends.includes(doc.data().senderId))
-        .map(async (doc) => {
-          const messageData = doc.data();
-          const senderData = await getUserProfile(messageData.senderId);
-          
-          return {
-            id: doc.id,
-            ...messageData,
-            timestamp: messageData.timestamp?.toDate(),
-            senderData,
-          };
-        })
-    );
-    
-    // Group by sender to get latest message per sender
-    const groupedByChat = new Map();
-    pendingMessages.forEach(msg => {
-      const senderId = msg.senderId;
-      if (!groupedByChat.has(senderId)) {
-        groupedByChat.set(senderId, msg);
-      }
-    });
-    
-    return Array.from(groupedByChat.values()).sort(
-      (a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0)
-    );
+    return messages;
   } catch (error) {
     console.error("Error fetching pending messages:", error);
     return [];
   }
 };
 
-// ============== PRESENCE (ONLINE / LAST SEEN) ==============
+// Set user online
 export const setUserOnline = async (userId: string) => {
   if (!db) return false;
   try {
     const userRef = doc(db, "users", userId);
-    await updateDoc(userRef, {
-      online: true,
-      lastSeen: serverTimestamp(),
-    });
+    await updateDoc(userRef, { online: true, lastSeen: serverTimestamp() });
     return true;
   } catch (error) {
     console.error("Error setting user online:", error);
@@ -798,14 +623,12 @@ export const setUserOnline = async (userId: string) => {
   }
 };
 
+// Set user offline
 export const setUserOffline = async (userId: string) => {
   if (!db) return false;
   try {
     const userRef = doc(db, "users", userId);
-    await updateDoc(userRef, {
-      online: false,
-      lastSeen: serverTimestamp(),
-    });
+    await updateDoc(userRef, { online: false, lastSeen: serverTimestamp() });
     return true;
   } catch (error) {
     console.error("Error setting user offline:", error);
@@ -813,6 +636,7 @@ export const setUserOffline = async (userId: string) => {
   }
 };
 
+// Send message with friend check
 export const sendMessageWithFriendCheck = async (senderId: string, receiverId: string, text: string) => {
   if (!db) throw new Error("Database not initialized");
   try {
@@ -821,10 +645,15 @@ export const sendMessageWithFriendCheck = async (senderId: string, receiverId: s
     const receiverSnap = await getDoc(receiverRef);
     
     if (!receiverSnap.exists()) {
-      throw new Error("User penerima tidak ditemukan");
+      throw new Error("Receiver not found");
     }
     
-    // Send message (regardless of friend status)
+    // Check if friends
+    const senderRef = doc(db, "users", senderId);
+    const senderData = (await getDoc(senderRef)).data();
+    const isFriend = senderData?.friends?.includes(receiverId);
+    
+    // Send message
     const messageRef = await addDoc(collection(db, "messages"), {
       senderId,
       receiverId,
@@ -833,14 +662,21 @@ export const sendMessageWithFriendCheck = async (senderId: string, receiverId: s
       read: false,
     });
     
+    // If not friends, add to pending messages for receiver
+    if (!isFriend) {
+      await updateDoc(receiverRef, {
+        pendingMessages: arrayUnion(messageRef.id),
+      });
+    }
+    
     return messageRef.id;
   } catch (error) {
-    console.error("Error sending message:", error);
+    console.error("Error sending message with friend check:", error);
     throw error;
   }
 };
 
-// ============== ARTICLE TAGS & CATEGORIES ==============
+// Get articles by tag
 export const getArticlesByTag = async (tag: string) => {
   if (!db) return [];
   try {
@@ -850,11 +686,9 @@ export const getArticlesByTag = async (tag: string) => {
       orderBy("createdAt", "desc")
     );
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({
+    return snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
-      createdAt: doc.data().createdAt?.toDate(),
-      updatedAt: doc.data().updatedAt?.toDate(),
     }));
   } catch (error) {
     console.error("Error fetching articles by tag:", error);
@@ -862,96 +696,61 @@ export const getArticlesByTag = async (tag: string) => {
   }
 };
 
+// Get all article tags
 export const getAllArticleTags = async () => {
   if (!db) return [];
   try {
     const snapshot = await getDocs(collection(db, "articles"));
-    const tagsSet = new Set<string>();
-    
+    const tags = new Set<string>();
     snapshot.docs.forEach(doc => {
-      const tags = doc.data().tags || [];
-      tags.forEach((tag: string) => tagsSet.add(tag));
+      const articleTags = doc.data().tags || [];
+      articleTags.forEach((tag: string) => tags.add(tag));
     });
-    
-    return Array.from(tagsSet).sort();
+    return Array.from(tags);
   } catch (error) {
     console.error("Error fetching all tags:", error);
     return [];
   }
 };
 
-// ============== ENHANCED MESSAGING WITH USER DATA ==============
-export const getMessagesWithUserData = async (userId1: string, userId2: string) => {
-  try {
-    const messages = await getConversation(userId1, userId2);
-    const user2Data = await getUserProfile(userId2);
-    
-    return {
-      messages,
-      otherUser: {
-        id: userId2,
-        ...user2Data,
-      }
-    };
-  } catch (error) {
-    console.error("Error fetching messages with user data:", error);
-    return { messages: [], otherUser: null };
-  }
-};
-
+// Get user chats
 export const getUserChats = async (userId: string) => {
   if (!db) return [];
   try {
     const q = query(
       collection(db, "messages"),
-      where("senderId", "==", userId)
+      where("senderId", "==", userId),
+      orderBy("timestamp", "desc"),
+      limit(50)
     );
-    const sent = await getDocs(q);
+    const snapshot = await getDocs(q);
     
-    const q2 = query(
-      collection(db, "messages"),
-      where("receiverId", "==", userId)
-    );
-    const received = await getDocs(q2);
-    
-    // Get unique conversation partners
-    const conversationSet = new Map<string, any>();
-    
-    [...sent.docs, ...received.docs].forEach(doc => {
+    // Group by receiver
+    const chatsMap = new Map();
+    for (const doc of snapshot.docs) {
       const data = doc.data();
-      const partnerId = data.senderId === userId ? data.receiverId : data.senderId;
-      
-      if (!conversationSet.has(partnerId)) {
-        conversationSet.set(partnerId, {
-          userId: partnerId,
+      const chatKey = data.receiverId;
+      if (!chatsMap.has(chatKey)) {
+        const userProfile = await getUserProfile(data.receiverId);
+        chatsMap.set(chatKey, {
+          userId: data.receiverId,
+          displayName: userProfile?.displayName || "User",
+          email: userProfile?.email || "",
           lastMessage: data.text,
-          lastMessageTime: data.timestamp?.toDate(),
+          lastMessageTime: data.timestamp,
           read: data.read,
         });
       }
-    });
+    }
     
-    // Enhancement: fetch user data for each conversation partner
-    const chatsWithUserData = await Promise.all(
-      Array.from(conversationSet.values()).map(async (chat) => {
-        const userData = await getUserProfile(chat.userId);
-        return {
-          ...chat,
-          ...userData,
-        };
-      })
-    );
-    
-    return chatsWithUserData.sort((a, b) => 
-      (b.lastMessageTime?.getTime() || 0) - (a.lastMessageTime?.getTime() || 0)
-    );
+    return Array.from(chatsMap.values());
   } catch (error) {
     console.error("Error fetching user chats:", error);
     return [];
   }
 };
 
-// ============== FORUM POST WITH AUTHOR DATA ==============
+// Get forum posts with author data
 export const getForumPostsWithAuthorData = async () => {
   if (!db) return [];
   try {
@@ -961,33 +760,26 @@ export const getForumPostsWithAuthorData = async () => {
     );
     const snapshot = await getDocs(q);
     
-    const postsWithAuthorData = await Promise.all(
+    const posts = await Promise.all(
       snapshot.docs.map(async (doc) => {
-        const postData = doc.data();
-        const authorData = await getUserProfile(postData.authorId);
-        const comments = await getCommentsForPostWithUserData(doc.id);
-        
+        const data = doc.data();
+        const authorData = await getUserProfile(data.userId);
         return {
           id: doc.id,
-          ...postData,
-          createdAt: postData.createdAt?.toDate(),
-          updatedAt: postData.updatedAt?.toDate(),
-          author: authorData?.displayName || "Anonymous",
-          authorId: postData.authorId,
-          avatar: authorData?.avatar || null,
-          comments: comments || [],
+          ...data,
+          authorData,
         };
       })
     );
     
-    return postsWithAuthorData;
+    return posts;
   } catch (error) {
     console.error("Error fetching forum posts with author data:", error);
     return [];
   }
 };
 
-// ============== ARTICLE WITH AUTHOR DATA ==============
+// Get articles with author data
 export const getArticlesWithAuthorData = async (limit_count: number = 10) => {
   if (!db) return [];
   try {
@@ -998,137 +790,21 @@ export const getArticlesWithAuthorData = async (limit_count: number = 10) => {
     );
     const snapshot = await getDocs(q);
     
-    const articlesWithAuthorData = await Promise.all(
+    const articles = await Promise.all(
       snapshot.docs.map(async (doc) => {
-        const articleData = doc.data();
-        const authorData = await getUserProfile(articleData.authorId);
-        
+        const data = doc.data();
+        const authorData = await getUserProfile(data.authorId);
         return {
           id: doc.id,
-          ...articleData,
-          createdAt: articleData.createdAt?.toDate(),
-          updatedAt: articleData.updatedAt?.toDate(),
-          author: authorData?.displayName || "Anonymous",
-          authorId: articleData.authorId,
-          authorEmail: authorData?.email,
-          authorAvatar: authorData?.avatar,
+          ...data,
+          authorData,
         };
       })
     );
     
-    return articlesWithAuthorData;
+    return articles;
   } catch (error) {
     console.error("Error fetching articles with author data:", error);
     return [];
-  }
-};
-
-// ============== KYC VERIFICATION MANAGEMENT ==============
-export const getPendingKYCRequests = async () => {
-  try {
-    const q = query(
-      collection(db, "users"),
-      where("verificationStatus", "==", "pending"),
-      orderBy("createdAt", "desc")
-    );
-    const snapshot = await getDocs(q);
-    
-    return snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-      createdAt: (doc.data() as any).createdAt?.toDate(),
-    }));
-  } catch (error) {
-    console.error("Error fetching pending KYC requests:", error);
-    return [];
-  }
-};
-
-export const updateKYCStatus = async (userId: string, status: "verified" | "rejected", adminNotes?: string) => {
-  if (!userId || !status) {
-    throw new Error("User ID dan status diperlukan");
-  }
-  
-  try {
-    const userRef = doc(db, "users", userId);
-    await updateDoc(userRef, {
-      verificationStatus: status,
-      verificationDate: serverTimestamp(),
-      adminNotes: adminNotes || "",
-      memberId: status === "verified" ? generateMemberId("member") : null,
-    });
-    
-    return { success: true, message: `KYC ${status === "verified" ? "disetujui" : "ditolak"}` };
-  } catch (error) {
-    console.error("Error updating KYC status:", error);
-    throw error;
-  }
-};
-
-export const getKYCForumPosts = async () => {
-  try {
-    const q = query(
-      collection(db, "forumPosts"),
-      orderBy("timestamp", "desc")
-    );
-    const snapshot = await getDocs(q);
-    
-    const postsWithAuthorData = await Promise.all(
-      snapshot.docs.map(async (doc) => {
-        const postData = doc.data();
-        const authorData = await getUserProfile(postData.authorId);
-        
-        return {
-          id: doc.id,
-          ...postData,
-          timestamp: (postData as any).timestamp?.toDate?.(),
-          author: authorData?.displayName || "Anonymous",
-          authorId: postData.authorId,
-          authorEmail: authorData?.email,
-        };
-      })
-    );
-    
-    return postsWithAuthorData;
-  } catch (error) {
-    console.error("Error fetching forum posts for admin:", error);
-    return [];
-  }
-};
-
-export const deleteForumPostByAdmin = async (postId: string, userId: string, userRole: string) => {
-  if (!postId) {
-    throw new Error("Post ID diperlukan");
-  }
-  
-  try {
-    const postRef = doc(db, "forumPosts", postId);
-    const postSnap = await getDoc(postRef);
-    
-    if (!postSnap.exists()) {
-      throw new Error("Postingan tidak ditemukan");
-    }
-    
-    const postData = postSnap.data();
-    
-    // Check: User is admin OR user is post author
-    if (userRole !== "admin" && postData.authorId !== userId) {
-      throw new Error("Anda tidak memiliki izin untuk menghapus postingan ini");
-    }
-    
-    await deleteDoc(postRef);
-    
-    // Also delete associated comments
-    const commentsRef = collection(postRef, "comments");
-    const commentSnap = await getDocs(commentsRef);
-    
-    for (const comment of commentSnap.docs) {
-      await deleteDoc(comment.ref);
-    }
-    
-    return { success: true, message: "Postingan berhasil dihapus" };
-  } catch (error) {
-    console.error("Error deleting forum post:", error);
-    throw error;
   }
 };
