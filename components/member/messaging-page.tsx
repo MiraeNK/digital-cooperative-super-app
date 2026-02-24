@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { Send, ArrowLeft, Search, Check, X, MessageSquare, User } from "lucide-react"
+import { Send, ArrowLeft, Search, Check, X, MessageSquare, User, BookOpen, Eye, Heart } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 import { 
   getConversation, 
@@ -14,7 +14,8 @@ import {
   acceptFriendRequest,
   rejectFriendRequest,
   searchUsers,
-  getUserProfile
+  getUserProfile,
+  getArticlesByAuthor
 } from "@/lib/firebase"
 import PublicProfile from "./public-profile"
 
@@ -39,6 +40,16 @@ interface Chat {
   online: boolean
 }
 
+interface PendingMessage {
+  id: string
+  senderId: string
+  receiverId: string
+  text: string
+  timestamp?: Date
+  read: boolean
+  senderData?: any
+}
+
 interface MessagingPageProps {
   selectedChatId: string | null
   onBack: () => void
@@ -53,6 +64,7 @@ export default function MessagingPage({ selectedChatId, onBack }: MessagingPageP
 
   // Tab states
   const [activeTab, setActiveTab] = useState<"chats" | "requests">("chats")
+  const [chatDetailTab, setChatDetailTab] = useState<"messages" | "articles" | "profile">("messages")
   const [inputText, setInputText] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<any[]>([])
@@ -60,12 +72,16 @@ export default function MessagingPage({ selectedChatId, onBack }: MessagingPageP
 
   // Profile view state
   const [viewingProfileId, setViewingProfileId] = useState<string | null>(null)
+  
+  // Articles state
+  const [partnerArticles, setPartnerArticles] = useState<any[]>([])
+  const [isLoadingArticles, setIsLoadingArticles] = useState(false)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // Data states
   const [chats, setChats] = useState<Chat[]>([])
-  const [pendingMessages, setPendingMessages] = useState<any[]>([])
+  const [pendingMessages, setPendingMessages] = useState<PendingMessage[]>([])
   const [pendingRequests, setPendingRequests] = useState<any[]>([])
   const [selectedChatInternal, setSelectedChatInternal] = useState<string>(selectedChatId || "")
   const [messages, setMessages] = useState<Message[]>([])
@@ -130,6 +146,26 @@ export default function MessagingPage({ selectedChatId, onBack }: MessagingPageP
 
     fetchPendingMessages()
   }, [user?.uid])
+
+  // Fetch partner articles when tab changes
+  useEffect(() => {
+    const fetchPartnerArticles = async () => {
+      if (chatDetailTab !== "articles" || !selectedChatInternal) return
+      
+      setIsLoadingArticles(true)
+      try {
+        const articles = await getArticlesByAuthor(selectedChatInternal)
+        setPartnerArticles(articles || [])
+      } catch (error) {
+        console.error("Error fetching partner articles:", error)
+        setPartnerArticles([])
+      } finally {
+        setIsLoadingArticles(false)
+      }
+    }
+
+    fetchPartnerArticles()
+  }, [chatDetailTab, selectedChatInternal])
 
   // Fetch messages for selected chat
   useEffect(() => {
@@ -222,24 +258,30 @@ export default function MessagingPage({ selectedChatId, onBack }: MessagingPageP
     if (!user?.uid) return
     try {
       await acceptFriendRequest(user.uid, senderId)
-      // Remove from pending messages
+      
+      // Remove from pending requests and messages
+      setPendingRequests(prev => prev.filter(p => p.id !== senderId))
       setPendingMessages(pending => pending.filter(p => p.senderId !== senderId))
-      // Add to chats
-      const senderData = await getUserProfile(senderId)
-      if (senderData) {
-        setChats(prev => [...prev, {
-          id: senderId,
-          displayName: senderData.displayName || "Anggota",
-          email: senderData.email || "",
-          lastMessage: "Percakapan dimulai",
-          lastMessageTime: new Date(),
-          unread: 0,
+      
+      // Fetch updated chats
+      const updatedChats = await getUserChats(user.uid)
+      if (updatedChats && updatedChats.length > 0) {
+        const formattedChats = updatedChats.map(chat => ({
+          id: chat.userId,
+          displayName: chat.displayName || "Anggota",
+          email: chat.email || "",
+          lastMessage: chat.lastMessage || "Percakapan dimulai",
+          lastMessageTime: chat.lastMessageTime,
+          unread: chat.read ? 0 : 1,
           online: true,
-        }])
+        }))
+        setChats(formattedChats)
       }
+      
       alert("Friend request diterima!")
     } catch (error) {
       console.error("Error accepting request:", error)
+      alert("Gagal menerima friend request")
     }
   }
 
@@ -447,21 +489,26 @@ export default function MessagingPage({ selectedChatId, onBack }: MessagingPageP
                                   try {
                                     await acceptFriendRequest(user.uid, req.id)
                                     setPendingRequests(prev => prev.filter(p => p.id !== req.id))
-                                    const senderData = await getUserProfile(req.id)
-                                    if (senderData) {
-                                      setChats(prev => [...prev, {
-                                        id: req.id,
-                                        displayName: senderData.displayName || "Anggota",
-                                        email: senderData.email || "",
-                                        lastMessage: "Percakapan dimulai",
-                                        lastMessageTime: new Date(),
-                                        unread: 0,
+                                    setPendingMessages(prev => prev.filter(p => p.senderId !== req.id))
+                                    
+                                    // Refresh chats list
+                                    const updatedChats = await getUserChats(user.uid)
+                                    if (updatedChats && updatedChats.length > 0) {
+                                      const formattedChats = updatedChats.map(chat => ({
+                                        id: chat.userId,
+                                        displayName: chat.displayName || "Anggota",
+                                        email: chat.email || "",
+                                        lastMessage: chat.lastMessage || "Percakapan dimulai",
+                                        lastMessageTime: chat.lastMessageTime,
+                                        unread: chat.read ? 0 : 1,
                                         online: true,
-                                      }])
+                                      }))
+                                      setChats(formattedChats)
                                     }
                                     alert("Permintaan pertemanan diterima")
                                   } catch (err) {
                                     console.error(err)
+                                    alert("Gagal menerima permintaan pertemanan")
                                   }
                                 }}
                                 className="flex-1 px-3 py-1.5 bg-green-100 text-green-700 rounded text-xs font-semibold hover:bg-green-200 transition flex items-center justify-center gap-1"
@@ -551,7 +598,7 @@ export default function MessagingPage({ selectedChatId, onBack }: MessagingPageP
                 <ArrowLeft className="w-5 h-5" />
               </button>
               <button
-                onClick={() => setViewingProfileId(selectedChatInternal)}
+                onClick={() => setChatDetailTab("profile")}
                 className="flex items-center gap-3 hover:opacity-80 transition"
               >
                 <div className="w-10 h-10 rounded-full bg-white bg-opacity-30 flex items-center justify-center font-bold">
@@ -566,63 +613,168 @@ export default function MessagingPage({ selectedChatId, onBack }: MessagingPageP
             <button className="p-2 hover:bg-blue-600 rounded transition">⋮</button>
           </div>
 
-          {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-gradient-to-b from-slate-50 to-white">
-            {isLoadingMessages ? (
-              <div className="flex justify-center py-8">
-                <div className="animate-spin w-6 h-6 border-3 border-primary border-t-transparent rounded-full" />
-              </div>
-            ) : messages.length === 0 ? (
-              <div className="flex items-center justify-center h-full text-slate-500">
-                <p className="text-sm">Mulai percakapan dengan mengirim pesan 👋</p>
-              </div>
-            ) : (
-              messages.map((message) => (
-                <div key={message.id} className={`flex ${message.isOwn ? "justify-end" : "justify-start"}`}>
-                  <div
-                    className={`max-w-xs sm:max-w-md px-4 py-2 rounded-lg ${
-                      message.isOwn
-                        ? "bg-primary text-white rounded-br-none"
-                        : "bg-slate-200 text-slate-900 rounded-bl-none"
-                    }`}
-                  >
-                    <p className="text-sm sm:text-base break-words">{message.text}</p>
-                    <p className={`text-xs mt-1 ${message.isOwn ? "text-blue-100" : "text-slate-600"}`}>
-                      {message.timestamp}
-                    </p>
-                  </div>
-                </div>
-              ))
-            )}
-            <div ref={messagesEndRef} />
+          {/* Chat Detail Tabs */}
+          <div className="flex border-b border-slate-200 bg-white">
+            <button
+              onClick={() => setChatDetailTab("messages")}
+              className={`flex-1 px-4 py-3 font-semibold text-sm transition border-b-2 ${
+                chatDetailTab === "messages"
+                  ? "text-primary border-primary"
+                  : "text-slate-600 border-transparent hover:text-slate-900"
+              }`}
+            >
+              <MessageSquare className="w-4 h-4 inline mr-2" />
+              Pesan
+            </button>
+            <button
+              onClick={() => setChatDetailTab("articles")}
+              className={`flex-1 px-4 py-3 font-semibold text-sm transition border-b-2 ${
+                chatDetailTab === "articles"
+                  ? "text-primary border-primary"
+                  : "text-slate-600 border-transparent hover:text-slate-900"
+              }`}
+            >
+              <BookOpen className="w-4 h-4 inline mr-2" />
+              Artikel
+            </button>
+            <button
+              onClick={() => setChatDetailTab("profile")}
+              className={`flex-1 px-4 py-3 font-semibold text-sm transition border-b-2 ${
+                chatDetailTab === "profile"
+                  ? "text-primary border-primary"
+                  : "text-slate-600 border-transparent hover:text-slate-900"
+              }`}
+            >
+              <User className="w-4 h-4 inline mr-2" />
+              Profil
+            </button>
           </div>
 
-          {/* Input Area */}
-          <div className="px-4 sm:px-6 py-4 border-t border-slate-200 bg-white flex-shrink-0">
-            <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="Ketik pesan..."
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                onKeyPress={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault()
-                    handleSendMessage()
-                  }
-                }}
-                className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
-              />
-              <button
-                onClick={handleSendMessage}
-                disabled={isSending}
-                className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-2 font-semibold text-sm disabled:opacity-50"
-              >
-                <Send className="w-4 h-4" />
-                <span className="hidden sm:inline">{isSending ? "..." : "Kirim"}</span>
-              </button>
-            </div>
+          {/* Tab Content */}
+          <div className="flex-1 overflow-y-auto bg-gradient-to-b from-slate-50 to-white">
+            {/* Messages Tab */}
+            {chatDetailTab === "messages" && (
+              <div className="p-4 sm:p-6 space-y-4 h-full flex flex-col">
+                {isLoadingMessages ? (
+                  <div className="flex justify-center py-8">
+                    <div className="animate-spin w-6 h-6 border-3 border-primary border-t-transparent rounded-full" />
+                  </div>
+                ) : messages.length === 0 ? (
+                  <div className="flex items-center justify-center h-full text-slate-500">
+                    <p className="text-sm">Mulai percakapan dengan mengirim pesan 👋</p>
+                  </div>
+                ) : (
+                  <>
+                    {messages.map((message) => (
+                      <div key={message.id} className={`flex ${message.isOwn ? "justify-end" : "justify-start"}`}>
+                        <div
+                          className={`max-w-xs sm:max-w-md px-4 py-2 rounded-lg ${
+                            message.isOwn
+                              ? "bg-primary text-white rounded-br-none"
+                              : "bg-slate-200 text-slate-900 rounded-bl-none"
+                          }`}
+                        >
+                          <p className="text-sm sm:text-base break-words">{message.text}</p>
+                          <p className={`text-xs mt-1 ${message.isOwn ? "text-blue-100" : "text-slate-600"}`}>
+                            {message.timestamp}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                    <div ref={messagesEndRef} />
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Articles Tab */}
+            {chatDetailTab === "articles" && (
+              <div className="p-4 sm:p-6">
+                {isLoadingArticles ? (
+                  <div className="flex justify-center py-12">
+                    <div className="animate-spin w-6 h-6 border-3 border-primary border-t-transparent rounded-full" />
+                  </div>
+                ) : partnerArticles.length === 0 ? (
+                  <div className="text-center py-12">
+                    <BookOpen className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                    <p className="text-slate-600 font-semibold">{currentChat.displayName} belum memiliki artikel</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-4">
+                    {partnerArticles.map((article) => (
+                      <div
+                        key={article.id}
+                        className="bg-white rounded-xl shadow hover:shadow-md transition overflow-hidden border-l-4 border-primary p-4"
+                      >
+                        <div className="flex gap-4">
+                          {article.coverImage && (
+                            <div className="w-24 h-24 rounded-lg bg-gradient-to-br from-blue-200 to-indigo-200 flex-shrink-0 overflow-hidden">
+                              <img src={article.coverImage} alt={article.title} className="w-full h-full object-cover" />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-bold text-slate-900 line-clamp-2 text-sm">{article.title}</h4>
+                            <p className="text-xs text-slate-600 mt-1 line-clamp-2">{article.description}</p>
+                            <div className="flex gap-3 mt-2">
+                              <div className="flex items-center gap-1 text-slate-600">
+                                <Eye className="w-3 h-3" />
+                                <span className="text-xs">{article.views || 0}</span>
+                              </div>
+                              <div className="flex items-center gap-1 text-slate-600">
+                                <Heart className="w-3 h-3" />
+                                <span className="text-xs">{article.likes || 0}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Profile Tab */}
+            {chatDetailTab === "profile" && (
+              <div className="p-4 sm:p-6">
+                <PublicProfile
+                  userId={selectedChatInternal}
+                  onBack={() => setChatDetailTab("messages")}
+                  onMessage={() => setChatDetailTab("messages")}
+                  inlineView={true}
+                />
+              </div>
+            )}
           </div>
+
+          {/* Input Area - Only show on messages tab */}
+          {chatDetailTab === "messages" && (
+            <div className="px-4 sm:px-6 py-4 border-t border-slate-200 bg-white flex-shrink-0">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Ketik pesan..."
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault()
+                      handleSendMessage()
+                    }
+                  }}
+                  className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+                />
+                <button
+                  onClick={handleSendMessage}
+                  disabled={isSending}
+                  className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-2 font-semibold text-sm disabled:opacity-50"
+                >
+                  <Send className="w-4 h-4" />
+                  <span className="hidden sm:inline">{isSending ? "..." : "Kirim"}</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <div className="flex-1 flex items-center justify-center text-slate-500">

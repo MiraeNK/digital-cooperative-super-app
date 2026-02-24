@@ -21,23 +21,41 @@ import {
 } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "",
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "",
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "",
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "",
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "",
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "",
 };
 
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+// Validate that Firebase config is properly loaded
+const isConfigValid = firebaseConfig.apiKey && firebaseConfig.authDomain && firebaseConfig.projectId;
 
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-export const googleProvider = new GoogleAuthProvider(); // <--- TAMBAHAN PENTING
+let app: any;
+let auth: any;
+let db: any;
+let googleProvider: any;
+
+if (isConfigValid) {
+  app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+  auth = getAuth(app);
+  db = getFirestore(app);
+  googleProvider = new GoogleAuthProvider();
+} else {
+  console.warn("Firebase configuration is incomplete. Check environment variables.");
+  // Create dummy objects to prevent runtime errors during build
+  app = null;
+  auth = null;
+  db = null;
+  googleProvider = null;
+}
+
+export { auth, db, googleProvider };
 
 // Fungsi helper simpan user
 export const createUserProfile = async (user: any, name: string) => {
-  if (!user) return;
+  if (!user || !db) return;
   
   const userRef = doc(db, "users", user.uid);
   const userSnap = await getDoc(userRef);
@@ -58,6 +76,7 @@ export const createUserProfile = async (user: any, name: string) => {
 };
 
 export const getUserProfile = async (uid: string) => {
+  if (!db) return null;
   const userRef = doc(db, "users", uid);
   const userSnap = await getDoc(userRef);
   if (userSnap.exists()) return userSnap.data();
@@ -65,6 +84,7 @@ export const getUserProfile = async (uid: string) => {
 };
 
 export const updateUserProfileData = async (uid: string, data: any) => {
+  if (!db) throw new Error("Database not initialized");
   const userRef = doc(db, "users", uid);
   try {
     await updateDoc(userRef, {
@@ -87,6 +107,7 @@ export const generateMemberId = (role: string) => {
 
 // ============== ARTICLES FUNCTIONS ==============
 export const createArticle = async (userId: string, articleData: any) => {
+  if (!db) throw new Error("Database not initialized");
   try {
     const docRef = await addDoc(collection(db, "articles"), {
       ...articleData,
@@ -104,6 +125,7 @@ export const createArticle = async (userId: string, articleData: any) => {
 };
 
 export const getArticles = async (limit_count: number = 10) => {
+  if (!db) return [];
   try {
     const q = query(
       collection(db, "articles"),
@@ -124,6 +146,7 @@ export const getArticles = async (limit_count: number = 10) => {
 };
 
 export const getArticleById = async (articleId: string) => {
+  if (!db) return null;
   try {
     const docRef = doc(db, "articles", articleId);
     const docSnap = await getDoc(docRef);
@@ -138,6 +161,7 @@ export const getArticleById = async (articleId: string) => {
 };
 
 export const getArticlesByAuthor = async (authorId: string) => {
+  if (!db) return [];
   try {
     const q = query(
       collection(db, "articles"),
@@ -158,6 +182,7 @@ export const getArticlesByAuthor = async (authorId: string) => {
 };
 
 export const updateArticle = async (articleId: string, data: any) => {
+  if (!db) throw new Error("Database not initialized");
   try {
     const docRef = doc(db, "articles", articleId);
     await updateDoc(docRef, {
@@ -172,6 +197,7 @@ export const updateArticle = async (articleId: string, data: any) => {
 };
 
 export const deleteArticle = async (articleId: string) => {
+  if (!db) throw new Error("Database not initialized");
   try {
     await deleteDoc(doc(db, "articles", articleId));
     return true;
@@ -183,6 +209,7 @@ export const deleteArticle = async (articleId: string) => {
 
 // ============== FORUM POSTS FUNCTIONS ==============
 export const createForumPost = async (userId: string, postData: any) => {
+  if (!db) throw new Error("Database not initialized");
   try {
     const docRef = await addDoc(collection(db, "forumPosts"), {
       ...postData,
@@ -201,6 +228,7 @@ export const createForumPost = async (userId: string, postData: any) => {
 };
 
 export const getForumPosts = async () => {
+  if (!db) return [];
   try {
     const q = query(
       collection(db, "forumPosts"),
@@ -220,6 +248,7 @@ export const getForumPosts = async () => {
 };
 
 export const getForumPostById = async (postId: string) => {
+  if (!db) return null;
   try {
     const docRef = doc(db, "forumPosts", postId);
     const docSnap = await getDoc(docRef);
@@ -234,6 +263,7 @@ export const getForumPostById = async (postId: string) => {
 };
 
 export const updateForumPost = async (postId: string, data: any) => {
+  if (!db) throw new Error("Database not initialized");
   try {
     const docRef = doc(db, "forumPosts", postId);
     await updateDoc(docRef, {
@@ -248,6 +278,7 @@ export const updateForumPost = async (postId: string, data: any) => {
 };
 
 export const deleteForumPost = async (postId: string) => {
+  if (!db) throw new Error("Database not initialized");
   try {
     await deleteDoc(doc(db, "forumPosts", postId));
     return true;
@@ -259,6 +290,7 @@ export const deleteForumPost = async (postId: string) => {
 
 // ============== COMMENTS FUNCTIONS ==============
 export const addCommentToPost = async (postId: string, userId: string, content: string) => {
+  if (!db) throw new Error("Database not initialized");
   try {
     // Validate required fields
     if (!postId || !userId || !content) {
@@ -290,6 +322,7 @@ export const addCommentToPost = async (postId: string, userId: string, content: 
 };
 
 export const getCommentsForPost = async (postId: string) => {
+  if (!db) return [];
   try {
     const q = query(
       collection(db, `forumPosts/${postId}/comments`),
@@ -308,6 +341,7 @@ export const getCommentsForPost = async (postId: string) => {
 };
 
 export const deleteComment = async (postId: string, commentId: string) => {
+  if (!db) throw new Error("Database not initialized");
   try {
     await deleteDoc(doc(db, `forumPosts/${postId}/comments`, commentId));
     
@@ -329,6 +363,7 @@ export const deleteComment = async (postId: string, commentId: string) => {
 
 // ============== MESSAGES FUNCTIONS ==============
 export const sendMessage = async (senderId: string, receiverId: string, text: string) => {
+  if (!db) throw new Error("Database not initialized");
   try {
     // Create message document
     const messageRef = await addDoc(collection(db, "messages"), {
@@ -346,6 +381,7 @@ export const sendMessage = async (senderId: string, receiverId: string, text: st
 };
 
 export const getConversation = async (userId1: string, userId2: string) => {
+  if (!db) return [];
   try {
     const q = query(
       collection(db, "messages"),
@@ -374,6 +410,7 @@ export const getConversation = async (userId1: string, userId2: string) => {
 };
 
 export const markMessageAsRead = async (messageId: string) => {
+  if (!db) throw new Error("Database not initialized");
   try {
     const docRef = doc(db, "messages", messageId);
     await updateDoc(docRef, { read: true });
@@ -386,6 +423,7 @@ export const markMessageAsRead = async (messageId: string) => {
 
 // ============== USERS/MEMBERS FUNCTIONS ==============
 export const getAllMembers = async () => {
+  if (!db) return [];
   try {
     const q = query(collection(db, "users"), where("role", "==", "member"));
     const snapshot = await getDocs(q);
@@ -401,6 +439,7 @@ export const getAllMembers = async () => {
 };
 
 export const getMemberStats = async () => {
+  if (!db) return { totalMembers: 0, totalWriters: 0, activeMembers: 0 };
   try {
     const memberQuery = query(collection(db, "users"), where("role", "==", "member"));
     const memberSnap = await getDocs(memberQuery);
@@ -421,6 +460,7 @@ export const getMemberStats = async () => {
 
 // ============== VOTE FUNCTIONS ==============
 export const voteOnPost = async (postId: string, userId: string, voteType: "upvote" | "downvote") => {
+  if (!db) throw new Error("Database not initialized");
   try {
     const postRef = doc(db, "forumPosts", postId);
     const postSnap = await getDoc(postRef);
@@ -506,6 +546,7 @@ export const getCommentsForPostWithUserData = async (postId: string) => {
 
 // ============== USER SEARCH & DISCOVERY FUNCTIONS ==============
 export const getUserById = async (userId: string) => {
+  if (!db) return null;
   try {
     const userRef = doc(db, "users", userId);
     const userSnap = await getDoc(userRef);
@@ -525,6 +566,7 @@ export const getUserById = async (userId: string) => {
 
 // ============== FRIEND/CONNECTION SYSTEM ==============
 export const sendFriendRequest = async (senderId: string, receiverId: string) => {
+  if (!db) throw new Error("Database not initialized");
   try {
     // Check if already friends or request exists
     const userRef = doc(db, "users", receiverId);
@@ -559,6 +601,7 @@ export const sendFriendRequest = async (senderId: string, receiverId: string) =>
 };
 
 export const acceptFriendRequest = async (userId: string, friendId: string) => {
+  if (!db) throw new Error("Database not initialized");
   try {
     const userRef = doc(db, "users", userId);
     const friendRef = doc(db, "users", friendId);
@@ -581,6 +624,7 @@ export const acceptFriendRequest = async (userId: string, friendId: string) => {
 };
 
 export const rejectFriendRequest = async (userId: string, friendId: string) => {
+  if (!db) throw new Error("Database not initialized");
   try {
     const userRef = doc(db, "users", userId);
     
@@ -596,6 +640,7 @@ export const rejectFriendRequest = async (userId: string, friendId: string) => {
 };
 
 export const getUserFriends = async (userId: string) => {
+  if (!db) return [];
   try {
     const userRef = doc(db, "users", userId);
     const userSnap = await getDoc(userRef);
@@ -625,6 +670,7 @@ export const getUserFriends = async (userId: string) => {
 };
 
 export const getPendingFriendRequests = async (userId: string) => {
+  if (!db) return [];
   try {
     const userRef = doc(db, "users", userId);
     const userSnap = await getDoc(userRef);
@@ -654,6 +700,7 @@ export const getPendingFriendRequests = async (userId: string) => {
 };
 
 export const searchUsers = async (searchQuery: string) => {
+  if (!db) return [];
   try {
     if (!searchQuery.trim()) {
       return [];
@@ -680,6 +727,7 @@ export const searchUsers = async (searchQuery: string) => {
 };
 
 export const getPendingMessages = async (userId: string) => {
+  if (!db) return [];
   try {
     const userRef = doc(db, "users", userId);
     const userSnap = await getDoc(userRef);
@@ -736,6 +784,7 @@ export const getPendingMessages = async (userId: string) => {
 
 // ============== PRESENCE (ONLINE / LAST SEEN) ==============
 export const setUserOnline = async (userId: string) => {
+  if (!db) return false;
   try {
     const userRef = doc(db, "users", userId);
     await updateDoc(userRef, {
@@ -750,6 +799,7 @@ export const setUserOnline = async (userId: string) => {
 };
 
 export const setUserOffline = async (userId: string) => {
+  if (!db) return false;
   try {
     const userRef = doc(db, "users", userId);
     await updateDoc(userRef, {
@@ -764,6 +814,7 @@ export const setUserOffline = async (userId: string) => {
 };
 
 export const sendMessageWithFriendCheck = async (senderId: string, receiverId: string, text: string) => {
+  if (!db) throw new Error("Database not initialized");
   try {
     // Check if receiver exists
     const receiverRef = doc(db, "users", receiverId);
@@ -791,6 +842,7 @@ export const sendMessageWithFriendCheck = async (senderId: string, receiverId: s
 
 // ============== ARTICLE TAGS & CATEGORIES ==============
 export const getArticlesByTag = async (tag: string) => {
+  if (!db) return [];
   try {
     const q = query(
       collection(db, "articles"),
@@ -811,6 +863,7 @@ export const getArticlesByTag = async (tag: string) => {
 };
 
 export const getAllArticleTags = async () => {
+  if (!db) return [];
   try {
     const snapshot = await getDocs(collection(db, "articles"));
     const tagsSet = new Set<string>();
@@ -847,6 +900,7 @@ export const getMessagesWithUserData = async (userId1: string, userId2: string) 
 };
 
 export const getUserChats = async (userId: string) => {
+  if (!db) return [];
   try {
     const q = query(
       collection(db, "messages"),
@@ -899,6 +953,7 @@ export const getUserChats = async (userId: string) => {
 
 // ============== FORUM POST WITH AUTHOR DATA ==============
 export const getForumPostsWithAuthorData = async () => {
+  if (!db) return [];
   try {
     const q = query(
       collection(db, "forumPosts"),
@@ -934,6 +989,7 @@ export const getForumPostsWithAuthorData = async () => {
 
 // ============== ARTICLE WITH AUTHOR DATA ==============
 export const getArticlesWithAuthorData = async (limit_count: number = 10) => {
+  if (!db) return [];
   try {
     const q = query(
       collection(db, "articles"),
