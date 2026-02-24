@@ -20,6 +20,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // Check for skip login user first (for development/testing)
+    if (typeof window !== "undefined") {
+      const skipLoginUser = localStorage.getItem("skipLoginUser")
+      if (skipLoginUser) {
+        try {
+          const parsedUser = JSON.parse(skipLoginUser)
+          setUser({
+            uid: parsedUser.uid,
+            email: parsedUser.email,
+            displayName: parsedUser.displayName,
+          } as any)
+          setUserProfile({
+            uid: parsedUser.uid,
+            email: parsedUser.email,
+            displayName: parsedUser.displayName,
+            role: parsedUser.role || "member",
+          })
+          setLoading(false)
+          return
+        } catch (e) {
+          console.error("Error parsing skip login user:", e)
+          localStorage.removeItem("skipLoginUser")
+        }
+      }
+    }
+
+    // Only set up auth listener if auth is available
+    if (!auth) {
+      console.warn("Auth is not initialized - running in development mode")
+      setLoading(false)
+      return
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (authUser) => {
       setUser(authUser)
       if (authUser) {

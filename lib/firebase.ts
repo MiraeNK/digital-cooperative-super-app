@@ -32,23 +32,23 @@ const firebaseConfig = {
 // Validate that Firebase config is properly loaded
 const isConfigValid = firebaseConfig.apiKey && firebaseConfig.authDomain && firebaseConfig.projectId;
 
-let app: any;
-let auth: any;
-let db: any;
-let googleProvider: any;
+let app: any = null;
+let auth: any = null;
+let db: any = null;
+let googleProvider: any = null;
 
-if (isConfigValid) {
-  app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-  auth = getAuth(app);
-  db = getFirestore(app);
-  googleProvider = new GoogleAuthProvider();
-} else {
-  console.warn("Firebase configuration is incomplete. Check environment variables.");
-  // Create dummy objects to prevent runtime errors during build
-  app = null;
-  auth = null;
-  db = null;
-  googleProvider = null;
+try {
+  if (isConfigValid) {
+    app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+    auth = getAuth(app);
+    db = getFirestore(app);
+    googleProvider = new GoogleAuthProvider();
+  } else {
+    console.warn("Firebase configuration is incomplete. Using development mode without Firebase.");
+  }
+} catch (error) {
+  console.error("Firebase initialization error:", error);
+  console.warn("App will run in development mode without Firebase backend");
 }
 
 export { auth, db, googleProvider };

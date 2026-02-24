@@ -26,6 +26,38 @@ export default function AuthPage() {
   const router = useRouter()
   // const { toast } = useToast() // Aktifkan jika sudah fix path toast
 
+  // --- FUNGSI SKIP LOGIN UNTUK TESTING ---
+  const handleSkipLogin = async () => {
+    setIsLoading(true)
+    try {
+      // Check if skip login is enabled
+      if (process.env.NEXT_PUBLIC_SKIP_LOGIN_ENABLED !== "true") {
+        alert("Skip login hanya tersedia di development mode")
+        setIsLoading(false)
+        return
+      }
+
+      // Create a fake admin user session in localStorage for testing
+      const testUser = {
+        uid: "admin-test-uid-12345",
+        email: "sp@gmail.com",
+        displayName: "sp-admin",
+        role: "admin",
+      }
+      
+      localStorage.setItem("skipLoginUser", JSON.stringify(testUser))
+      
+      // Simulate redirect to app
+      router.push("/app")
+    } catch (error) {
+      console.error("Skip login error:", error)
+      alert("Gagal skip login")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+  // ----------------------------------
+
   // --- FUNGSI LOGIN GOOGLE ---
   const handleGoogleLogin = async () => {
     setIsLoading(true)
@@ -133,6 +165,17 @@ export default function AuthPage() {
               {isLoading ? <><Loader2 className="w-5 h-5 animate-spin" /> Memproses...</> : (authMode === "login" ? "Masuk Sekarang" : "Buat Akun")}
             </button>
           </form>
+
+          {/* --- SKIP LOGIN BUTTON FOR TESTING --- */}
+          {process.env.NEXT_PUBLIC_SKIP_LOGIN_ENABLED === "true" && (
+            <button
+              onClick={handleSkipLogin}
+              disabled={isLoading}
+              className="mt-4 w-full py-2 bg-yellow-100 text-yellow-800 font-semibold rounded-lg hover:bg-yellow-200 transition text-sm"
+            >
+              [DEV] Skip Login (Admin)
+            </button>
+          )}
 
           {/* --- BAGIAN TOMBOL GOOGLE --- */}
           <div className="mt-6">
