@@ -1,8 +1,9 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Search, Heart, Eye, Tag, BookOpen, X } from "lucide-react"
-import { getArticlesWithAuthorData, getAllArticleTags, getArticlesByTag } from "@/lib/firebase"
+import { Search, ArrowLeft, ArrowUpRight, BookOpen } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { getArticlesWithAuthorData, getAllArticleTags } from "@/lib/firebase"
 
 interface Article {
   id: string
@@ -15,7 +16,7 @@ interface Article {
   views: number
   likes: number
   coverImage?: string
-  createdAt: Date
+  createdAt: any
   excerpt?: string
 }
 
@@ -24,13 +25,16 @@ interface ArticlesDiscoverySectionProps {
 }
 
 export default function ArticlesDiscoverySection({ onArticleClick }: ArticlesDiscoverySectionProps) {
+  const router = useRouter()
   const [articles, setArticles] = useState<any[]>([])
   const [allArticles, setAllArticles] = useState<any[]>([])
   const [tags, setTags] = useState<string[]>([])
-  const [selectedTags, setSelectedTags] = useState<string[]>([])
+  
+  // States for filtering
+  const [activeCategory, setActiveCategory] = useState<string>("Semua Kategori")
   const [searchTerm, setSearchTerm] = useState("")
+  const [sortBy, setSortBy] = useState("newest")
   const [isLoading, setIsLoading] = useState(true)
-  const [isExpanded, setIsExpanded] = useState(false)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -41,7 +45,10 @@ export default function ArticlesDiscoverySection({ onArticleClick }: ArticlesDis
         setArticles(articlesData)
 
         const tagsData = await getAllArticleTags()
-        setTags(tagsData)
+        // Gabungkan dengan default tag jika tag dari DB masih kosong/sedikit
+        const defaultTags = ["Keuangan", "Pertanian", "Peternakan", "Teknologi", "Berita"]
+        const combinedTags = tagsData.length > 0 ? Array.from(new Set([...defaultTags, ...tagsData])) : defaultTags
+        setTags(combinedTags)
       } catch (error) {
         console.error("Error fetching data:", error)
       } finally {
@@ -52,196 +59,284 @@ export default function ArticlesDiscoverySection({ onArticleClick }: ArticlesDis
     fetchData()
   }, [])
 
-  const handleTagClick = (tag: string) => {
-    const newSelectedTags = selectedTags.includes(tag)
-      ? selectedTags.filter((t) => t !== tag)
-      : [...selectedTags, tag]
+  // Efek untuk memfilter artikel setiap kali state pencarian/kategori/sort berubah
+  useEffect(() => {
+    let result = [...allArticles]
 
-    setSelectedTags(newSelectedTags)
-
-    if (newSelectedTags.length === 0) {
-      setArticles(allArticles)
-    } else {
-      const filtered = allArticles.filter((article) =>
-        newSelectedTags.some((t) => (article.tags || []).includes(t)),
-      )
-      setArticles(filtered)
+    // 1. Filter Kategori
+    if (activeCategory !== "Semua Kategori") {
+      result = result.filter((a) => a.tags?.includes(activeCategory))
     }
-  }
 
-  const handleSearch = (term: string) => {
-    setSearchTerm(term)
-    const searchResults = allArticles.filter((article) => {
-      const matchesSearch =
-        article.title?.toLowerCase().includes(term.toLowerCase()) ||
-        article.description?.toLowerCase().includes(term.toLowerCase()) ||
-        article.author?.toLowerCase().includes(term.toLowerCase())
+    // 2. Filter Pencarian
+    if (searchTerm.trim() !== "") {
+      const lowerQuery = searchTerm.toLowerCase()
+      result = result.filter(
+        (a) =>
+          a.title?.toLowerCase().includes(lowerQuery) ||
+          a.description?.toLowerCase().includes(lowerQuery) ||
+          a.author?.toLowerCase().includes(lowerQuery)
+      )
+    }
 
-      const matchesTags =
-        selectedTags.length === 0 ||
-        selectedTags.some((tag) => (article.tags || []).includes(tag))
+    // 3. Sorting
+    if (sortBy === "oldest") {
+      result.reverse() // Asumsi awal sudah 'newest' dari DB
+    } else if (sortBy === "popular") {
+      result.sort((a, b) => (b.views || 0) - (a.views || 0))
+    }
 
-      return matchesSearch && matchesTags
-    })
+    setArticles(result)
+  }, [activeCategory, searchTerm, sortBy, allArticles])
 
-    setArticles(searchResults)
-  }
-
-  const defaultTags = ["Keuangan & Bisnis", "Hasil Tani", "Kesehatan", "Teknologi", "Berita", "Tips & Trik"]
-  const displayedArticles = isExpanded ? articles : articles.slice(0, 4)
+  const featuredArticle = articles.length > 0 ? articles[0] : null
+  const gridArticles = articles.length > 1 ? articles.slice(1) : []
 
   return (
-    <div className="space-y-3 sm:space-y-4">
-      {/* Header */}
-      <div className="flex items-start sm:items-center justify-between gap-2 sm:gap-4">
-        <div>
-          <h3 className="text-base sm:text-xl font-semibold text-slate-900">Jelajahi Artikel</h3>
-          <p className="text-xs sm:text-sm text-slate-500">Temukan artikel dari komunitas koperasi</p>
-        </div>
-      </div>
-
-      {/* Search Bar */}
-      <div className="relative">
-        <Search className="absolute left-3 sm:left-4 top-3 sm:top-3.5 w-4 h-4 sm:w-5 sm:h-5 text-slate-400" />
-        <input
-          type="text"
-          placeholder="Cari judul, penulis..."
-          value={searchTerm}
-          onChange={(e) => handleSearch(e.target.value)}
-          className="w-full pl-9 sm:pl-12 pr-3 sm:pr-4 py-2 sm:py-3 border-2 border-slate-300 rounded-lg sm:rounded-xl focus:outline-none focus:border-primary focus:ring-2 focus:ring-blue-100 text-sm sm:text-base text-slate-900"
-        />
-      </div>
-
-      {/* Category Tags */}
-      <div>
-        <h4 className="text-xs sm:text-sm font-semibold text-slate-600 mb-2 sm:mb-3 flex items-center gap-2">
-          <Tag className="w-3 h-3 sm:w-4 sm:h-4" />
-          Kategori
-        </h4>
-        <div className="flex gap-2 overflow-x-auto pb-2">
-          {defaultTags.map((tag) => (
-            <button
-              key={tag}
-              onClick={() => handleTagClick(tag)}
-              className={`px-2 sm:px-4 py-1 sm:py-2 rounded-full font-semibold transition whitespace-nowrap text-xs sm:text-sm ${
-                selectedTags.includes(tag)
-                  ? "bg-primary text-white"
-                  : "bg-white text-primary border-2 border-primary hover:bg-blue-50"
-              }`}
-            >
-              {tag}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Active Filters */}
-      {selectedTags.length > 0 && (
-        <div className="p-2 sm:p-3 bg-blue-100 rounded-lg">
-          <div className="flex flex-wrap gap-2 items-center">
-            <span className="text-xs sm:text-sm font-semibold text-primary">Filter aktif:</span>
-            {selectedTags.map((tag) => (
-              <button
-                key={tag}
-                onClick={() => handleTagClick(tag)}
-                className="px-2 sm:px-3 py-1 bg-white text-primary rounded-full text-xs sm:text-sm font-semibold hover:bg-slate-100 transition flex items-center gap-1"
-              >
-                {tag}
-                <X className="w-3 h-3" />
-              </button>
-            ))}
+    <div className="min-h-screen bg-[#f9f8f5] text-slate-900 font-sans pb-20">
+      <div className="max-w-[1180px] mx-auto px-4 sm:px-6 pt-6">
+        
+        {/* Navigation Button */}
+        <button 
+          onClick={() => router.back()} 
+          className="flex items-center gap-2 text-slate-500 hover:text-primary transition-colors mb-6 text-sm font-medium w-fit"
+        >
+          <div className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm">
+            <ArrowLeft className="w-4 h-4" />
           </div>
-        </div>
-      )}
+          Kembali ke Beranda
+        </button>
 
-      {/* Articles Grid */}
-      {isLoading ? (
-        <div className="flex justify-center py-8 sm:py-12">
-          <div className="animate-spin w-6 h-6 sm:w-8 sm:h-8 border-4 border-primary border-t-transparent rounded-full" />
+        {/* Hero Section */}
+        <div className="py-8 sm:py-12 text-center md:text-left">
+          <span className="inline-block text-xs font-semibold text-primary tracking-widest uppercase mb-4">
+            Baca & Pelajari
+          </span>
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-black text-slate-900 tracking-tight leading-tight mb-4">
+            Jelajahi Artikel <br className="hidden md:block"/> Koperasi
+          </h1>
+          <p className="text-slate-500 text-base max-w-md mx-auto md:mx-0">
+            Temukan panduan, berita terbaru, dan wawasan mendalam dari komunitas untuk mengembangkan usaha Anda.
+          </p>
         </div>
-      ) : displayedArticles.length === 0 ? (
-        <div className="text-center py-8 sm:py-12">
-          <BookOpen className="w-8 h-8 sm:w-12 sm:h-12 text-slate-300 mx-auto mb-3" />
-          <p className="text-slate-600 font-semibold text-sm sm:text-base">Tidak ada artikel ditemukan</p>
-          <p className="text-slate-500 text-xs sm:text-sm">Coba ubah filter atau pencarian Anda</p>
-        </div>
-      ) : (
-        <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-            {displayedArticles.map((article) => (
-              <button
-                key={article.id}
-                onClick={() => onArticleClick?.(article)}
-                className="bg-white rounded-lg sm:rounded-xl shadow-sm sm:shadow-md hover:shadow-lg transition overflow-hidden text-left border border-slate-200"
+
+        {/* Body Grid Layout (Sidebar + Main Content) */}
+        <div className="flex flex-col lg:grid lg:grid-cols-[240px_1fr] gap-10 items-start">
+          
+          {/* SIDEBAR */}
+          <aside className="w-full lg:sticky lg:top-8 space-y-8">
+            
+            {/* Search */}
+            <div>
+              <span className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 mb-3 display-block">
+                Pencarian
+              </span>
+              <div className="flex items-center gap-2 bg-white border-2 border-[#e8e5de] rounded-xl px-4 py-2.5 transition-colors focus-within:border-primary">
+                <Search className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                <input
+                  type="text"
+                  placeholder="Cari artikel..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full bg-transparent border-none outline-none text-sm text-slate-900 placeholder:text-slate-400"
+                />
+              </div>
+            </div>
+
+            {/* Filter Sort */}
+            <div>
+              <span className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 mb-3 display-block">
+                Urutkan
+              </span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="w-full bg-white border-2 border-[#e8e5de] rounded-xl px-4 py-3 text-sm text-slate-600 outline-none focus:border-primary appearance-none cursor-pointer"
               >
-                {/* Article Image */}
-                {article.coverImage && (
-                  <div className="h-24 sm:h-32 bg-gradient-to-br from-blue-200 to-indigo-200 flex items-center justify-center overflow-hidden">
-                    <img src={article.coverImage} alt={article.title} className="w-full h-full object-cover" />
+                <option value="newest">Terbaru</option>
+                <option value="oldest">Terlama</option>
+                <option value="popular">Terpopuler</option>
+              </select>
+            </div>
+
+            {/* Categories */}
+            <div>
+              <span className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 mb-3 display-block">
+                Kategori
+              </span>
+              <div className="flex flex-col gap-1">
+                <button
+                  onClick={() => setActiveCategory("Semua Kategori")}
+                  className={`text-left px-3 py-2 rounded-lg text-sm transition-all ${
+                    activeCategory === "Semua Kategori"
+                      ? "bg-[#ede9ff] text-primary font-semibold"
+                      : "text-slate-600 hover:bg-[#f0eeff] hover:text-primary"
+                  }`}
+                >
+                  Semua Kategori
+                </button>
+                {tags.map((tag) => (
+                  <button
+                    key={tag}
+                    onClick={() => setActiveCategory(tag)}
+                    className={`text-left px-3 py-2 rounded-lg text-sm transition-all ${
+                      activeCategory === tag
+                        ? "bg-[#ede9ff] text-primary font-semibold"
+                        : "text-slate-600 hover:bg-[#f0eeff] hover:text-primary"
+                    }`}
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </aside>
+
+          {/* MAIN CONTENT (ARTICLES) */}
+          <main className="w-full space-y-8">
+            {isLoading ? (
+              <div className="flex justify-center py-20">
+                <div className="animate-spin w-10 h-10 border-4 border-primary border-t-transparent rounded-full" />
+              </div>
+            ) : articles.length === 0 ? (
+              <div className="text-center py-20 bg-white rounded-3xl border-2 border-dashed border-[#e8e5de]">
+                <BookOpen className="w-16 h-16 text-slate-200 mx-auto mb-4" />
+                <p className="text-slate-600 font-semibold text-lg">Tidak ada artikel</p>
+                <p className="text-slate-400 text-sm mt-1">Coba gunakan kata kunci atau kategori lain.</p>
+              </div>
+            ) : (
+              <>
+                {/* 1. FEATURED ARTICLE (Top) */}
+                {featuredArticle && (
+                  <div
+                    onClick={() => onArticleClick?.(featuredArticle)}
+                    className="group flex flex-col md:flex-row bg-white rounded-3xl overflow-hidden border-2 border-[#e8e5de] hover:shadow-[0_16px_40px_rgba(0,0,0,0.06)] hover:-translate-y-1 transition-all duration-300 cursor-pointer"
+                  >
+                    {/* Thumbnail */}
+                    <div className="w-full md:w-[45%] h-[250px] md:h-[340px] bg-slate-100 overflow-hidden relative">
+                      {featuredArticle.coverImage ? (
+                        <img 
+                          src={featuredArticle.coverImage} 
+                          alt={featuredArticle.title} 
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-[#c8a97e] to-[#8b6b4a]" />
+                      )}
+                    </div>
+
+                    {/* Content */}
+                    <div className="w-full md:w-[55%] p-6 md:p-10 flex flex-col justify-center">
+                      <div className="flex items-center gap-3 mb-4">
+                        <span className="inline-block px-3 py-1 bg-[#fff8e1] text-[#e6a800] text-[10px] font-bold uppercase tracking-wider rounded-full">
+                          Utama
+                        </span>
+                        <span className="inline-block px-3 py-1 bg-[#f0eeff] text-primary text-[10px] font-bold uppercase tracking-wider rounded-full">
+                          {featuredArticle.tags?.[0] || "Umum"}
+                        </span>
+                      </div>
+
+                      <h3 className="text-2xl md:text-3xl font-bold text-slate-900 mb-3 leading-snug group-hover:text-primary transition-colors">
+                        {featuredArticle.title}
+                      </h3>
+                      
+                      <p className="text-slate-500 text-sm md:text-base mb-6 line-clamp-2 md:line-clamp-3 leading-relaxed">
+                        {featuredArticle.description}
+                      </p>
+
+                      <div className="flex items-center justify-between mt-auto">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-primary font-bold text-sm overflow-hidden border border-slate-200">
+                            {featuredArticle.authorAvatar ? (
+                              <img src={featuredArticle.authorAvatar} alt="Author" className="w-full h-full object-cover"/>
+                            ) : (
+                              featuredArticle.author?.charAt(0).toUpperCase() || "A"
+                            )}
+                          </div>
+                          <div>
+                            <p className="font-semibold text-sm text-slate-900">{featuredArticle.author || "Penulis"}</p>
+                            <p className="text-xs text-slate-500">5 min read</p>
+                          </div>
+                        </div>
+
+                        <div className="w-10 h-10 rounded-full border-2 border-[#e8e5de] flex items-center justify-center text-slate-600 group-hover:bg-primary group-hover:border-primary group-hover:text-white transition-all">
+                          <ArrowUpRight className="w-5 h-5" />
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
 
-                {/* Article Content */}
-                <div className="p-3 sm:p-4">
-                  {/* Category Tags */}
-                  {article.tags && article.tags.length > 0 && (
-                    <div className="flex gap-2 mb-2 flex-wrap">
-                      {article.tags.slice(0, 2).map((tag: string) => (
-                        <span
-                          key={tag}
-                          className="px-2 py-0.5 bg-blue-100 text-primary rounded text-xs font-semibold"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                {/* 2. GRID ARTICLES (Bottom) */}
+                {gridArticles.length > 0 && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    {gridArticles.map((article) => (
+                      <div
+                        key={article.id}
+                        onClick={() => onArticleClick?.(article)}
+                        className="group flex flex-col bg-white rounded-3xl overflow-hidden border-2 border-[#e8e5de] hover:shadow-[0_12px_32px_rgba(0,0,0,0.06)] hover:-translate-y-1 transition-all duration-300 cursor-pointer"
+                      >
+                        {/* Thumbnail */}
+                        <div className="w-full h-[200px] overflow-hidden relative bg-slate-100">
+                          {article.coverImage ? (
+                            <img 
+                              src={article.coverImage} 
+                              alt={article.title} 
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-gradient-to-br from-[#a8d8a8] to-[#558b55]" />
+                          )}
+                        </div>
 
-                  {/* Title */}
-                  <h4 className="font-bold text-xs sm:text-sm text-slate-900 mb-1 line-clamp-2">{article.title}</h4>
+                        {/* Content */}
+                        <div className="p-6 flex flex-col flex-1">
+                          <div className="mb-4">
+                            <span className="inline-block px-3 py-1 bg-[#f0eeff] text-primary text-[10px] font-bold uppercase tracking-wider rounded-full">
+                              {article.tags?.[0] || "Umum"}
+                            </span>
+                          </div>
 
-                  {/* Description */}
-                  <p className="text-xs text-slate-600 mb-2 sm:mb-3 line-clamp-2">{article.description}</p>
+                          <h4 className="text-xl font-bold text-slate-900 mb-2 leading-snug group-hover:text-primary transition-colors line-clamp-2">
+                            {article.title}
+                          </h4>
+                          
+                          <p className="text-slate-500 text-sm mb-6 line-clamp-2 leading-relaxed">
+                            {article.description}
+                          </p>
 
-                  {/* Author Info */}
-                  <div className="flex items-center gap-2 mb-2 sm:mb-3 pb-2 sm:pb-3 border-b border-slate-200">
-                    <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-primary to-blue-600 flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
-                      {article.author?.charAt(0).toUpperCase() || "A"}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-xs text-slate-900 truncate">{article.author || "Penulis"}</p>
-                    </div>
+                          {/* Spacer to push footer down */}
+                          <div className="flex-1" />
+
+                          <div className="flex items-center justify-between pt-2">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-primary font-bold text-xs overflow-hidden border border-slate-200">
+                                {article.authorAvatar ? (
+                                  <img src={article.authorAvatar} alt="Author" className="w-full h-full object-cover"/>
+                                ) : (
+                                  article.author?.charAt(0).toUpperCase() || "A"
+                                )}
+                              </div>
+                              <div>
+                                <p className="font-semibold text-xs text-slate-900">{article.author || "Penulis"}</p>
+                                <p className="text-[11px] text-slate-500">5 min read</p>
+                              </div>
+                            </div>
+
+                            <div className="w-8 h-8 rounded-full border-2 border-[#e8e5de] flex items-center justify-center text-slate-600 group-hover:bg-primary group-hover:border-primary group-hover:text-white transition-all">
+                              <ArrowUpRight className="w-4 h-4" />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-
-                  {/* Stats */}
-                  <div className="flex gap-3 text-xs">
-                    <div className="flex items-center gap-1 text-slate-600">
-                      <Eye className="w-3 h-3" />
-                      <span>{article.views || 0}</span>
-                    </div>
-                    <div className="flex items-center gap-1 text-slate-600">
-                      <Heart className="w-3 h-3" />
-                      <span>{article.likes || 0}</span>
-                    </div>
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
-
-          {/* Expand Button */}
-          {articles.length > 4 && (
-            <div className="flex justify-center pt-4 sm:pt-6">
-              <button
-                onClick={() => setIsExpanded(!isExpanded)}
-                className="px-4 sm:px-6 py-2 sm:py-2.5 bg-primary text-white font-semibold rounded-lg hover:bg-blue-700 transition text-sm sm:text-base"
-              >
-                {isExpanded ? "Sembunyikan" : "Lihat Semua Artikel"}
-              </button>
-            </div>
-          )}
-        </>
-      )}
+                )}
+              </>
+            )}
+          </main>
+        </div>
+      </div>
     </div>
   )
 }

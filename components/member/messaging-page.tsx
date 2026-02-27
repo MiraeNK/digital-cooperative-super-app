@@ -1,7 +1,11 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
+<<<<<<< Updated upstream
 import { Send, ArrowLeft, Search, Check, X, MessageSquare, User, BookOpen, Eye, Heart, Phone, Mail, MapPin, Clock } from "lucide-react"
+=======
+import { Send, ArrowLeft, Search, Check, X, MessageSquare, User } from "lucide-react"
+>>>>>>> Stashed changes
 import { useAuth } from "@/components/auth-provider"
 import { 
   getConversation, 
@@ -13,9 +17,7 @@ import {
   getUserFriends,
   acceptFriendRequest,
   rejectFriendRequest,
-  searchUsers,
-  getUserProfile,
-  getArticlesByAuthor
+  searchUsers
 } from "@/lib/firebase"
 
 interface Message {
@@ -61,20 +63,24 @@ export default function MessagingPage({ selectedChatId, onBack }: MessagingPageP
   const [isLoadingMessages, setIsLoadingMessages] = useState(false)
   const [isLoadingPending, setIsLoadingPending] = useState(true)
 
-  // Tab states
+  // Tab states for Sidebar
   const [activeTab, setActiveTab] = useState<"chats" | "requests">("chats")
-  const [chatDetailTab, setChatDetailTab] = useState<"messages" | "articles" | "profile">("messages")
   const [inputText, setInputText] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<any[]>([])
   const [showSearch, setShowSearch] = useState(false)
 
+<<<<<<< Updated upstream
   // Articles state
   const [partnerArticles, setPartnerArticles] = useState<any[]>([])
   const [isLoadingArticles, setIsLoadingArticles] = useState(false)
   
   // Partner profile state
   const [partnerProfile, setPartnerProfile] = useState<any | null>(null)
+=======
+  // Profile view state
+  const [viewingProfileId, setViewingProfileId] = useState<string | null>(null)
+>>>>>>> Stashed changes
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -148,6 +154,7 @@ export default function MessagingPage({ selectedChatId, onBack }: MessagingPageP
     fetchPending()
   }, [user?.uid])
 
+<<<<<<< Updated upstream
   // Fetch partner articles when tab changes
   useEffect(() => {
     const fetchPartnerArticles = async () => {
@@ -184,6 +191,8 @@ export default function MessagingPage({ selectedChatId, onBack }: MessagingPageP
     fetchPartnerProfile()
   }, [chatDetailTab, selectedChatInternal])
 
+=======
+>>>>>>> Stashed changes
   // Fetch messages for selected chat
   useEffect(() => {
     const fetchMessages = async () => {
@@ -518,6 +527,7 @@ export default function MessagingPage({ selectedChatId, onBack }: MessagingPageP
       {currentChat ? (
         <div className="hidden sm:flex flex-1 flex-col bg-white">
           {/* Chat Header */}
+<<<<<<< Updated upstream
           <div className="px-6 py-4 bg-gradient-to-r from-primary to-blue-700 text-white flex items-center justify-between border-b border-blue-600 flex-shrink-0">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-full bg-white bg-opacity-30 flex items-center justify-center font-bold text-lg">
@@ -527,10 +537,31 @@ export default function MessagingPage({ selectedChatId, onBack }: MessagingPageP
                 <h3 className="font-semibold text-lg">{currentChat.displayName}</h3>
                 <p className="text-xs text-blue-100">{currentChat.online ? "Online" : "Offline"}</p>
               </div>
+=======
+          <div className="px-4 sm:px-6 py-4 bg-gradient-to-r from-primary to-blue-700 text-white flex items-center justify-between border-b border-blue-600 flex-shrink-0">
+            <div className="flex items-center gap-3">
+              <button onClick={onBack} className="p-2 hover:bg-blue-600 rounded transition lg:hidden">
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <button
+                // Tombol di header sekarang langsung membuka Profil di halaman full, bukan tab!
+                onClick={() => setViewingProfileId(currentChat.id)}
+                className="flex items-center gap-3 hover:opacity-80 transition"
+              >
+                <div className="w-10 h-10 rounded-full bg-white bg-opacity-30 flex items-center justify-center font-bold">
+                  {currentChat.displayName?.charAt(0).toUpperCase() || "A"}
+                </div>
+                <div className="text-left">
+                  <h3 className="font-semibold">{currentChat.displayName}</h3>
+                  <p className="text-xs text-blue-100">{currentChat.online ? "Online" : "Offline"}</p>
+                </div>
+              </button>
+>>>>>>> Stashed changes
             </div>
             <button onClick={onBack} className="p-2 hover:bg-blue-600 rounded-lg transition hidden">⋮</button>
           </div>
 
+<<<<<<< Updated upstream
           {/* Chat Detail Tabs */}
           <div className="flex border-b border-slate-200 bg-slate-50">
             <button
@@ -620,32 +651,36 @@ export default function MessagingPage({ selectedChatId, onBack }: MessagingPageP
                 ) : (
                   <div className="grid grid-cols-1 gap-4">
                     {partnerArticles.map((article) => (
+=======
+          {/* Messages Area */}
+          <div className="flex-1 overflow-y-auto bg-gradient-to-b from-slate-50 to-white">
+            <div className="p-4 sm:p-6 space-y-4 h-full flex flex-col">
+              {isLoadingMessages ? (
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin w-6 h-6 border-3 border-primary border-t-transparent rounded-full" />
+                </div>
+              ) : messages.length === 0 ? (
+                <div className="flex items-center justify-center h-full text-slate-500">
+                  <p className="text-sm">Mulai percakapan dengan mengirim pesan 👋</p>
+                </div>
+              ) : (
+                <>
+                  {messages.map((message) => (
+                    <div key={message.id} className={`flex ${message.isOwn ? "justify-end" : "justify-start"}`}>
+>>>>>>> Stashed changes
                       <div
-                        key={article.id}
-                        className="bg-white rounded-xl shadow hover:shadow-md transition overflow-hidden border-l-4 border-primary p-4"
+                        className={`max-w-xs sm:max-w-md px-4 py-2 rounded-lg ${
+                          message.isOwn
+                            ? "bg-primary text-white rounded-br-none"
+                            : "bg-slate-200 text-slate-900 rounded-bl-none"
+                        }`}
                       >
-                        <div className="flex gap-4">
-                          {article.coverImage && (
-                            <div className="w-24 h-24 rounded-lg bg-gradient-to-br from-blue-200 to-indigo-200 flex-shrink-0 overflow-hidden">
-                              <img src={article.coverImage} alt={article.title} className="w-full h-full object-cover" />
-                            </div>
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <h4 className="font-bold text-slate-900 line-clamp-2 text-sm">{article.title}</h4>
-                            <p className="text-xs text-slate-600 mt-1 line-clamp-2">{article.description}</p>
-                            <div className="flex gap-3 mt-2">
-                              <div className="flex items-center gap-1 text-slate-600">
-                                <Eye className="w-3 h-3" />
-                                <span className="text-xs">{article.views || 0}</span>
-                              </div>
-                              <div className="flex items-center gap-1 text-slate-600">
-                                <Heart className="w-3 h-3" />
-                                <span className="text-xs">{article.likes || 0}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
+                        <p className="text-sm sm:text-base break-words">{message.text}</p>
+                        <p className={`text-xs mt-1 ${message.isOwn ? "text-blue-100" : "text-slate-600"}`}>
+                          {message.timestamp}
+                        </p>
                       </div>
+<<<<<<< Updated upstream
                     ))}
                   </div>
                 )}
@@ -740,8 +775,42 @@ export default function MessagingPage({ selectedChatId, onBack }: MessagingPageP
                   {isSending ? "..." : "Kirim"}
                 </button>
               </div>
+=======
+                    </div>
+                  ))}
+                  <div ref={messagesEndRef} />
+                </>
+              )}
             </div>
-          )}
+          </div>
+
+          {/* Input Area */}
+          <div className="px-4 sm:px-6 py-4 border-t border-slate-200 bg-white flex-shrink-0">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Ketik pesan..."
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault()
+                    handleSendMessage()
+                  }
+                }}
+                className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+              />
+              <button
+                onClick={handleSendMessage}
+                disabled={isSending || !inputText.trim()}
+                className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-2 font-semibold text-sm disabled:opacity-50"
+              >
+                <Send className="w-4 h-4" />
+                <span className="hidden sm:inline">{isSending ? "..." : "Kirim"}</span>
+              </button>
+>>>>>>> Stashed changes
+            </div>
+          </div>
         </div>
       ) : (
         <div className="flex-1 hidden lg:flex items-center justify-center bg-white">

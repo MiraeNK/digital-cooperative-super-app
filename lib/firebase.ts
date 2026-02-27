@@ -593,11 +593,29 @@ export const getPendingMessages = async (userId: string) => {
     const messages = await Promise.all(
       pendingMessageIds.map(async (msgId: string) => {
         const msgRef = doc(db, "messages", msgId);
+<<<<<<< Updated upstream
         const msgData = (await getDoc(msgRef)).data();
         const senderData = await getUserProfile(msgData?.senderId);
         return {
           id: msgId,
           ...msgData,
+=======
+        const msgSnap = await getDoc(msgRef);
+        
+        // Gunakan 'as any' agar TS mengizinkan pembacaan data dinamis
+        const msgData = msgSnap.data() as any; 
+        
+        const senderData = await getUserProfile(msgData?.senderId);
+        
+        // Definisikan propertinya secara eksplisit di sini
+        return {
+          id: msgId,
+          senderId: msgData?.senderId || "",
+          receiverId: msgData?.receiverId || "",
+          text: msgData?.text || "",
+          timestamp: msgData?.timestamp || null,
+          read: msgData?.read || false,
+>>>>>>> Stashed changes
           senderData,
         };
       })
@@ -640,7 +658,6 @@ export const setUserOffline = async (userId: string) => {
 export const sendMessageWithFriendCheck = async (senderId: string, receiverId: string, text: string) => {
   if (!db) throw new Error("Database not initialized");
   try {
-    // Check if receiver exists
     const receiverRef = doc(db, "users", receiverId);
     const receiverSnap = await getDoc(receiverRef);
     
@@ -648,12 +665,19 @@ export const sendMessageWithFriendCheck = async (senderId: string, receiverId: s
       throw new Error("Receiver not found");
     }
     
+<<<<<<< Updated upstream
     // Check if friends
+=======
+>>>>>>> Stashed changes
     const senderRef = doc(db, "users", senderId);
     const senderData = (await getDoc(senderRef)).data();
     const isFriend = senderData?.friends?.includes(receiverId);
     
+<<<<<<< Updated upstream
     // Send message
+=======
+    // 1. Tambah ke koleksi messages
+>>>>>>> Stashed changes
     const messageRef = await addDoc(collection(db, "messages"), {
       senderId,
       receiverId,
@@ -662,7 +686,26 @@ export const sendMessageWithFriendCheck = async (senderId: string, receiverId: s
       read: false,
     });
     
+<<<<<<< Updated upstream
     // If not friends, add to pending messages for receiver
+=======
+    // 2. Update list chat untuk kedua user (PENTING AGAR MUNCUL DI SIDEBAR)
+    const senderChatRef = doc(db, "chats", senderId, "chats", receiverId);
+    const receiverChatRef = doc(db, "chats", receiverId, "chats", senderId);
+
+    await setDoc(senderChatRef, {
+      lastMessage: text,
+      lastMessageTime: serverTimestamp(),
+      unread: false,
+    }, { merge: true });
+
+    await setDoc(receiverChatRef, {
+      lastMessage: text,
+      lastMessageTime: serverTimestamp(),
+      unread: true,
+    }, { merge: true });
+    
+>>>>>>> Stashed changes
     if (!isFriend) {
       await updateDoc(receiverRef, {
         pendingMessages: arrayUnion(messageRef.id),
@@ -713,10 +756,33 @@ export const getAllArticleTags = async () => {
   }
 };
 
+<<<<<<< Updated upstream
+=======
+// ============== ENHANCED MESSAGING WITH USER DATA ==============
+export const getMessagesWithUserData = async (userId1: string, userId2: string) => {
+  try {
+    const messages = await getConversation(userId1, userId2);
+    const user2Data = await getUserProfile(userId2);
+    
+    return {
+      messages,
+      otherUser: {
+        id: userId2,
+        ...user2Data,
+      }
+    };
+  } catch (error) {
+    console.error("Error fetching messages with user data:", error);
+    return { messages: [], otherUser: null };
+  }
+};
+
+>>>>>>> Stashed changes
 // Get user chats
 export const getUserChats = async (userId: string) => {
   if (!db) return [];
   try {
+<<<<<<< Updated upstream
     const q = query(
       collection(db, "messages"),
       where("senderId", "==", userId),
@@ -744,6 +810,35 @@ export const getUserChats = async (userId: string) => {
     }
     
     return Array.from(chatsMap.values());
+=======
+    // Baca langsung dari sub-koleksi chats milik user tersebut
+    const q = query(collection(db, "chats", userId, "chats"));
+    const snapshot = await getDocs(q);
+    
+    const chatsList = await Promise.all(
+      snapshot.docs.map(async (docSnap) => {
+        const data = docSnap.data();
+        const receiverId = docSnap.id;
+        const userProfile = await getUserProfile(receiverId);
+        
+        return {
+          userId: receiverId,
+          displayName: userProfile?.displayName || "User",
+          email: userProfile?.email || "",
+          lastMessage: data.lastMessage,
+          lastMessageTime: data.lastMessageTime,
+          read: !data.unread,
+        };
+      })
+    );
+    
+    // Urutkan dari pesan terbaru
+    return chatsList.sort((a, b) => {
+      const timeA = a.lastMessageTime?.toMillis?.() || 0;
+      const timeB = b.lastMessageTime?.toMillis?.() || 0;
+      return timeB - timeA;
+    });
+>>>>>>> Stashed changes
   } catch (error) {
     console.error("Error fetching user chats:", error);
     return [];
