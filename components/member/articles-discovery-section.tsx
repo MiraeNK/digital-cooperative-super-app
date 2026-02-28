@@ -1,330 +1,829 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Search, ArrowLeft, ArrowUpRight, BookOpen } from "lucide-react"
-import { useRouter } from "next/navigation"
+import { Search, ArrowLeft, ArrowUpRight, BookOpen, Eye, Heart, SlidersHorizontal, ChevronDown } from "lucide-react"
 import { getArticlesWithAuthorData, getAllArticleTags } from "@/lib/firebase"
 
+// ─── Gradient palettes untuk placeholder thumbnail ───────────────────────────
+const GRADIENTS = [
+  "linear-gradient(135deg,#c8a97e,#8b6b4a)",
+  "linear-gradient(135deg,#a8d8a8,#2d6a4f)",
+  "linear-gradient(135deg,#b8c8e8,#1d4e89)",
+  "linear-gradient(135deg,#e8c8a8,#c08060)",
+  "linear-gradient(135deg,#d8a8e8,#7b4fa5)",
+  "linear-gradient(135deg,#f0e8c0,#c8a020)",
+  "linear-gradient(135deg,#c0e8e8,#1a7a8a)",
+  "linear-gradient(135deg,#e8a8b8,#a03060)",
+]
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 interface Article {
   id: string
   title: string
-  description: string
+  description?: string
+  excerpt?: string
   tags?: string[]
   author: string
-  authorId: string
+  authorId?: string
   authorAvatar?: string
-  views: number
-  likes: number
+  views?: number
+  likes?: number
   coverImage?: string
-  createdAt: any
-  excerpt?: string
+  createdAt?: any
 }
 
 interface ArticlesDiscoverySectionProps {
   onArticleClick?: (article: Article) => void
+  onBack?: () => void
 }
 
-export default function ArticlesDiscoverySection({ onArticleClick }: ArticlesDiscoverySectionProps) {
-  const router = useRouter()
-  const [articles, setArticles] = useState<any[]>([])
-  const [allArticles, setAllArticles] = useState<any[]>([])
-  const [tags, setTags] = useState<string[]>([])
-  
-  // States for filtering
-  const [activeCategory, setActiveCategory] = useState<string>("Semua Kategori")
+// ─── DUMMY DATA (fallback kalau Firebase kosong) ───────────────────────────────
+const DUMMY_ARTICLES: Article[] = [
+  {
+    id: "d1",
+    title: "Cara Cerdas Mengembangkan Usaha Tani dengan Modal Koperasi",
+    description: "Panduan lengkap memanfaatkan fasilitas pinjaman koperasi untuk meningkatkan hasil pertanian dan pendapatan keluarga.",
+    tags: ["Pertanian"],
+    author: "Tubagus Ahmad",
+    views: 3240,
+    likes: 210,
+    coverImage: "",
+  },
+  {
+    id: "d2",
+    title: "Strategi UMKM Go Digital: Dari Pasar Tradisional ke Marketplace",
+    description: "Transformasi usaha kecil menengah ke platform digital terbukti meningkatkan omzet hingga 3x lipat dalam 6 bulan.",
+    tags: ["Keuangan & Bisnis"],
+    author: "Dewi Lestari",
+    views: 2180,
+    likes: 145,
+    coverImage: "",
+  },
+  {
+    id: "d3",
+    title: "Kesehatan Jiwa Petani: Mengelola Tekanan Musim Panen",
+    description: "Bagaimana komunitas koperasi bisa saling mendukung kesehatan mental antar anggota di tengah tantangan agraris.",
+    tags: ["Kesehatan"],
+    author: "dr. Wahyu Subagyo",
+    views: 1870,
+    likes: 98,
+    coverImage: "",
+  },
+  {
+    id: "d4",
+    title: "IoT & Sensor Tanah: Teknologi Murah untuk Panen Maksimal",
+    description: "Alat sensor tanah berbasis IoT kini bisa diakses UMKM dengan harga terjangkau dan hasil yang luar biasa.",
+    tags: ["Teknologi"],
+    author: "Roni Hermawan",
+    views: 1540,
+    likes: 88,
+    coverImage: "",
+  },
+  {
+    id: "d5",
+    title: "Hasil Ternak Sapi Potong: Menghitung Untung Bersih yang Realistis",
+    description: "Analisis biaya produksi dan proyeksi keuntungan beternak sapi potong skala rumahan dengan dukungan koperasi.",
+    tags: ["Peternakan"],
+    author: "Hendra Wijaya",
+    views: 2650,
+    likes: 175,
+    coverImage: "",
+  },
+  {
+    id: "d6",
+    title: "Raih Sertifikasi Halal UMKM: Langkah Demi Langkah",
+    description: "Panduan praktis mengurus sertifikasi halal produk UMKM agar bisa menembus pasar modern dan ekspor.",
+    tags: ["Keuangan & Bisnis"],
+    author: "Siti Rahayu",
+    views: 1920,
+    likes: 134,
+    coverImage: "",
+  },
+  {
+    id: "d7",
+    title: "Tips Menjaga Kualitas Beras Organik Selama Penyimpanan",
+    description: "Teknik penyimpanan pasca panen yang benar untuk mempertahankan kualitas dan nilai jual beras organik.",
+    tags: ["Pertanian"],
+    author: "Agus Santoso",
+    views: 1340,
+    likes: 72,
+    coverImage: "",
+  },
+]
+
+const DEFAULT_CATEGORIES = [
+  "Semua Kategori",
+  "Keuangan & Bisnis",
+  "Pertanian",
+  "Peternakan",
+  "Kesehatan",
+  "Teknologi",
+  "Berita",
+  "Tips & Trik",
+]
+
+// ─── Helper: hitung read time ────────────────────────────────────────────────
+function readTime(text?: string) {
+  if (!text) return "5 min baca"
+  const words = text.split(" ").length
+  const mins = Math.max(1, Math.round(words / 200))
+  return `${mins} min baca`
+}
+
+// ─── Helper: ambil inisial ───────────────────────────────────────────────────
+function initials(name?: string) {
+  if (!name) return "A"
+  return name
+    .split(" ")
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .join("")
+}
+
+// ─── MAIN COMPONENT ──────────────────────────────────────────────────────────
+export default function ArticlesDiscoverySection({
+  onArticleClick,
+  onBack,
+}: ArticlesDiscoverySectionProps) {
+  const [allArticles, setAllArticles] = useState<Article[]>([])
+  const [articles, setArticles] = useState<Article[]>([])
+  const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES)
+  const [activeCategory, setActiveCategory] = useState("Semua Kategori")
   const [searchTerm, setSearchTerm] = useState("")
   const [sortBy, setSortBy] = useState("newest")
   const [isLoading, setIsLoading] = useState(true)
+  const [showMobileFilter, setShowMobileFilter] = useState(false)
 
+  // ── Fetch data ─────────────────────────────────────────────────────────────
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true)
       try {
-        const articlesData = await getArticlesWithAuthorData(20)
-        setAllArticles(articlesData)
-        setArticles(articlesData)
+        const dbArticles = await getArticlesWithAuthorData(30)
+        const dbTags = await getAllArticleTags()
 
-        const tagsData = await getAllArticleTags()
-        // Gabungkan dengan default tag jika tag dari DB masih kosong/sedikit
-        const defaultTags = ["Keuangan", "Pertanian", "Peternakan", "Teknologi", "Berita"]
-        const combinedTags = tagsData.length > 0 ? Array.from(new Set([...defaultTags, ...tagsData])) : defaultTags
-        setTags(combinedTags)
-      } catch (error) {
-        console.error("Error fetching data:", error)
+        const merged =
+          dbArticles.length > 0
+            ? [
+                ...dbArticles,
+                ...DUMMY_ARTICLES.filter((d) => !dbArticles.find((a: Article) => a.id === d.id)),
+              ]
+            : DUMMY_ARTICLES
+
+        setAllArticles(merged)
+        setArticles(merged)
+
+        if (dbTags.length > 0) {
+          const combined = Array.from(
+            new Set(["Semua Kategori", ...DEFAULT_CATEGORIES.slice(1), ...dbTags])
+          )
+          setCategories(combined)
+        }
+      } catch {
+        setAllArticles(DUMMY_ARTICLES)
+        setArticles(DUMMY_ARTICLES)
       } finally {
         setIsLoading(false)
       }
     }
-
     fetchData()
   }, [])
 
-  // Efek untuk memfilter artikel setiap kali state pencarian/kategori/sort berubah
+  // ── Filter + Sort ──────────────────────────────────────────────────────────
   useEffect(() => {
     let result = [...allArticles]
 
-    // 1. Filter Kategori
     if (activeCategory !== "Semua Kategori") {
       result = result.filter((a) => a.tags?.includes(activeCategory))
     }
 
-    // 2. Filter Pencarian
-    if (searchTerm.trim() !== "") {
-      const lowerQuery = searchTerm.toLowerCase()
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase()
       result = result.filter(
         (a) =>
-          a.title?.toLowerCase().includes(lowerQuery) ||
-          a.description?.toLowerCase().includes(lowerQuery) ||
-          a.author?.toLowerCase().includes(lowerQuery)
+          a.title?.toLowerCase().includes(q) ||
+          a.description?.toLowerCase().includes(q) ||
+          a.author?.toLowerCase().includes(q)
       )
     }
 
-    // 3. Sorting
-    if (sortBy === "oldest") {
-      result.reverse() // Asumsi awal sudah 'newest' dari DB
-    } else if (sortBy === "popular") {
-      result.sort((a, b) => (b.views || 0) - (a.views || 0))
-    }
+    if (sortBy === "oldest") result.reverse()
+    else if (sortBy === "popular") result.sort((a, b) => (b.views ?? 0) - (a.views ?? 0))
+    else if (sortBy === "newest") result.sort((a, b) => {
+      const ta = a.createdAt?.toMillis?.() ?? 0
+      const tb = b.createdAt?.toMillis?.() ?? 0
+      return tb - ta
+    })
 
     setArticles(result)
   }, [activeCategory, searchTerm, sortBy, allArticles])
 
-  const featuredArticle = articles.length > 0 ? articles[0] : null
-  const gridArticles = articles.length > 1 ? articles.slice(1) : []
+  const featuredArticle = articles[0] ?? null
+  const gridArticles = articles.slice(1)
 
+  // ── Gradient for placeholder ───────────────────────────────────────────────
+  const getGradient = (id: string) => {
+    const index = Math.abs(id.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0)) % GRADIENTS.length
+    return GRADIENTS[index]
+  }
+
+  // ─── RENDER ─────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#f9f8f5] text-slate-900 font-sans pb-20">
-      <div className="max-w-[1180px] mx-auto px-4 sm:px-6 pt-6">
-        
-        {/* Navigation Button */}
-        <button 
-          onClick={() => router.back()} 
-          className="flex items-center gap-2 text-slate-500 hover:text-primary transition-colors mb-6 text-sm font-medium w-fit"
-        >
-          <div className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm">
-            <ArrowLeft className="w-4 h-4" />
-          </div>
-          Kembali ke Beranda
-        </button>
+    <div
+      className="min-h-screen pb-24"
+      style={{ background: "#f9f8f5", fontFamily: "'DM Sans', sans-serif" }}
+    >
+      {/* ── Google Fonts ── */}
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@400;700;900&family=DM+Sans:wght@300;400;500&display=swap');
 
-        {/* Hero Section */}
-        <div className="py-8 sm:py-12 text-center md:text-left">
-          <span className="inline-block text-xs font-semibold text-primary tracking-widest uppercase mb-4">
+        .fraunces { font-family: 'Fraunces', serif; }
+
+        .article-card {
+          transition: box-shadow 0.22s ease, transform 0.22s ease;
+        }
+        .article-card:hover {
+          box-shadow: 0 12px 32px rgba(0,0,0,0.09);
+          transform: translateY(-2px);
+        }
+
+        .featured-card {
+          transition: box-shadow 0.22s ease, transform 0.22s ease;
+        }
+        .featured-card:hover {
+          box-shadow: 0 16px 40px rgba(0,0,0,0.09);
+          transform: translateY(-2px);
+        }
+
+        .link-btn {
+          transition: background 0.15s, border-color 0.15s, color 0.15s;
+        }
+        .link-btn:hover {
+          background: hsl(var(--primary));
+          border-color: hsl(var(--primary));
+          color: #fff;
+        }
+
+        .cat-btn {
+          transition: background 0.15s, color 0.15s;
+          text-align: left;
+          background: transparent;
+          border: none;
+          cursor: pointer;
+          font-family: 'DM Sans', sans-serif;
+        }
+        .cat-btn:hover {
+          background: #ede9ff;
+          color: #5b4fcf;
+        }
+        .cat-btn.active {
+          background: #ede9ff;
+          color: #5b4fcf;
+          font-weight: 600;
+        }
+
+        @keyframes fadeUp {
+          from { opacity: 0; transform: translateY(18px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .fade-up { animation: fadeUp 0.45s ease both; }
+        .fade-up-1 { animation: fadeUp 0.45s 0.05s ease both; }
+        .fade-up-2 { animation: fadeUp 0.45s 0.10s ease both; }
+        .fade-up-3 { animation: fadeUp 0.45s 0.15s ease both; }
+        .fade-up-4 { animation: fadeUp 0.45s 0.20s ease both; }
+        .fade-up-5 { animation: fadeUp 0.45s 0.25s ease both; }
+
+        .search-box:focus-within {
+          border-color: hsl(var(--primary)) !important;
+        }
+        .sort-select:focus {
+          border-color: hsl(var(--primary)) !important;
+          outline: none;
+        }
+        .thumb-img {
+          transition: transform 0.6s ease;
+        }
+        .article-card:hover .thumb-img,
+        .featured-card:hover .thumb-img {
+          transform: scale(1.05);
+        }
+        .img-wrapper { overflow: hidden; }
+      `}</style>
+
+      <div style={{ maxWidth: 1180, margin: "0 auto", padding: "0 24px 80px" }}>
+
+        {/* ── NAVIGATION BUTTON (Back to Home) ── */}
+        <div style={{ paddingTop: 28, marginBottom: 8 }}>
+          <button
+            onClick={onBack}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              background: "#fff",
+              border: "1.5px solid #e8e5de",
+              borderRadius: 40,
+              padding: "8px 18px 8px 12px",
+              cursor: "pointer",
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: 13,
+              fontWeight: 500,
+              color: "#555",
+              boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+              transition: "box-shadow 0.15s, border-color 0.15s",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = "hsl(var(--primary))"
+              e.currentTarget.style.color = "hsl(var(--primary))"
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = "#e8e5de"
+              e.currentTarget.style.color = "#555"
+            }}
+          >
+            <span style={{
+              width: 26, height: 26,
+              borderRadius: "50%",
+              background: "#f0eeff",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <ArrowLeft size={14} style={{ color: "hsl(var(--primary))" }} />
+            </span>
+            Kembali ke Beranda
+          </button>
+        </div>
+
+        {/* ── HERO ── */}
+        <div style={{ padding: "48px 0 40px", textAlign: "center" }}>
+          <span style={{
+            display: "inline-block",
+            fontSize: 12,
+            fontWeight: 600,
+            color: "hsl(var(--primary))",
+            letterSpacing: "0.1em",
+            textTransform: "uppercase",
+            marginBottom: 14,
+          }}>
             Baca & Pelajari
           </span>
-          <h1 className="text-4xl sm:text-5xl md:text-6xl font-black text-slate-900 tracking-tight leading-tight mb-4">
-            Jelajahi Artikel <br className="hidden md:block"/> Koperasi
+          <h1
+            className="fraunces"
+            style={{
+              fontSize: "clamp(36px, 5vw, 62px)",
+              fontWeight: 900,
+              lineHeight: 1.05,
+              letterSpacing: "-0.02em",
+              color: "#111",
+              marginBottom: 14,
+            }}
+          >
+            Jelajahi Artikel Koperasi
           </h1>
-          <p className="text-slate-500 text-base max-w-md mx-auto md:mx-0">
-            Temukan panduan, berita terbaru, dan wawasan mendalam dari komunitas untuk mengembangkan usaha Anda.
+          <p style={{ fontSize: 16, color: "#888", maxWidth: 420, margin: "0 auto" }}>
+            Panduan, berita, dan wawasan dari komunitas untuk mengembangkan usaha bersama.
           </p>
         </div>
 
-        {/* Body Grid Layout (Sidebar + Main Content) */}
-        <div className="flex flex-col lg:grid lg:grid-cols-[240px_1fr] gap-10 items-start">
-          
-          {/* SIDEBAR */}
-          <aside className="w-full lg:sticky lg:top-8 space-y-8">
-            
+        {/* ── MOBILE FILTER TOGGLE ── */}
+        <div style={{ marginBottom: 16 }} className="lg:hidden">
+          <button
+            onClick={() => setShowMobileFilter(!showMobileFilter)}
+            style={{
+              display: "flex", alignItems: "center", gap: 8,
+              background: "#fff", border: "1.5px solid #e8e5de",
+              borderRadius: 10, padding: "10px 16px",
+              cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+              fontSize: 14, color: "#555", width: "100%",
+              justifyContent: "space-between",
+            }}
+          >
+            <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <SlidersHorizontal size={16} />
+              Filter & Kategori
+            </span>
+            <ChevronDown
+              size={16}
+              style={{
+                transform: showMobileFilter ? "rotate(180deg)" : "rotate(0deg)",
+                transition: "transform 0.2s",
+              }}
+            />
+          </button>
+        </div>
+
+        {/* ── BODY GRID ── */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "240px 1fr",
+            gap: 40,
+            alignItems: "start",
+          }}
+          className="!grid-cols-1 lg:!grid-cols-[240px_1fr]"
+        >
+          {/* ── SIDEBAR ── */}
+          <aside
+            style={{ position: "sticky", top: 24 }}
+            className={`${showMobileFilter ? "block" : "hidden"} lg:block`}
+          >
             {/* Search */}
-            <div>
-              <span className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 mb-3 display-block">
+            <div style={{ marginBottom: 28 }}>
+              <span style={{
+                display: "block", fontSize: 11, fontWeight: 600,
+                letterSpacing: "0.1em", textTransform: "uppercase",
+                color: "#aaa", marginBottom: 10,
+              }}>
                 Pencarian
               </span>
-              <div className="flex items-center gap-2 bg-white border-2 border-[#e8e5de] rounded-xl px-4 py-2.5 transition-colors focus-within:border-primary">
-                <Search className="w-4 h-4 text-slate-400 flex-shrink-0" />
+              <div
+                className="search-box"
+                style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  background: "#fff", border: "1.5px solid #e8e5de",
+                  borderRadius: 10, padding: "10px 14px",
+                }}
+              >
+                <Search size={16} style={{ color: "#aaa", flexShrink: 0 }} />
                 <input
                   type="text"
                   placeholder="Cari artikel..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full bg-transparent border-none outline-none text-sm text-slate-900 placeholder:text-slate-400"
+                  style={{
+                    border: "none", outline: "none",
+                    background: "transparent",
+                    fontFamily: "'DM Sans', sans-serif",
+                    fontSize: 14, width: "100%", color: "#111",
+                  }}
                 />
               </div>
             </div>
 
-            {/* Filter Sort */}
-            <div>
-              <span className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 mb-3 display-block">
+            {/* Sort */}
+            <div style={{ marginBottom: 28 }}>
+              <span style={{
+                display: "block", fontSize: 11, fontWeight: 600,
+                letterSpacing: "0.1em", textTransform: "uppercase",
+                color: "#aaa", marginBottom: 10,
+              }}>
                 Urutkan
               </span>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="w-full bg-white border-2 border-[#e8e5de] rounded-xl px-4 py-3 text-sm text-slate-600 outline-none focus:border-primary appearance-none cursor-pointer"
-              >
-                <option value="newest">Terbaru</option>
-                <option value="oldest">Terlama</option>
-                <option value="popular">Terpopuler</option>
-              </select>
+              <div style={{ position: "relative" }}>
+                <select
+                  className="sort-select"
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  style={{
+                    width: "100%", background: "#fff",
+                    border: "1.5px solid #e8e5de",
+                    borderRadius: 10, padding: "10px 14px",
+                    fontFamily: "'DM Sans', sans-serif",
+                    fontSize: 14, color: "#666",
+                    appearance: "none", cursor: "pointer",
+                  }}
+                >
+                  <option value="newest">Terbaru</option>
+                  <option value="oldest">Terlama</option>
+                  <option value="popular">Terpopuler</option>
+                </select>
+                <ChevronDown
+                  size={14}
+                  style={{
+                    position: "absolute", right: 12, top: "50%",
+                    transform: "translateY(-50%)", color: "#aaa",
+                    pointerEvents: "none",
+                  }}
+                />
+              </div>
             </div>
 
             {/* Categories */}
             <div>
-              <span className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 mb-3 display-block">
+              <span style={{
+                display: "block", fontSize: 11, fontWeight: 600,
+                letterSpacing: "0.1em", textTransform: "uppercase",
+                color: "#aaa", marginBottom: 10,
+              }}>
                 Kategori
               </span>
-              <div className="flex flex-col gap-1">
-                <button
-                  onClick={() => setActiveCategory("Semua Kategori")}
-                  className={`text-left px-3 py-2 rounded-lg text-sm transition-all ${
-                    activeCategory === "Semua Kategori"
-                      ? "bg-[#ede9ff] text-primary font-semibold"
-                      : "text-slate-600 hover:bg-[#f0eeff] hover:text-primary"
-                  }`}
-                >
-                  Semua Kategori
-                </button>
-                {tags.map((tag) => (
+              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                {categories.map((cat) => (
                   <button
-                    key={tag}
-                    onClick={() => setActiveCategory(tag)}
-                    className={`text-left px-3 py-2 rounded-lg text-sm transition-all ${
-                      activeCategory === tag
-                        ? "bg-[#ede9ff] text-primary font-semibold"
-                        : "text-slate-600 hover:bg-[#f0eeff] hover:text-primary"
-                    }`}
+                    key={cat}
+                    onClick={() => setActiveCategory(cat)}
+                    className={`cat-btn ${activeCategory === cat ? "active" : ""}`}
+                    style={{
+                      padding: "8px 12px",
+                      borderRadius: 8,
+                      fontSize: 14,
+                      color: activeCategory === cat ? "#5b4fcf" : "#444",
+                      width: "100%",
+                    }}
                   >
-                    {tag}
+                    {cat}
                   </button>
                 ))}
               </div>
             </div>
           </aside>
 
-          {/* MAIN CONTENT (ARTICLES) */}
-          <main className="w-full space-y-8">
+          {/* ── MAIN ARTICLES ── */}
+          <main style={{ display: "flex", flexDirection: "column", gap: 24 }}>
             {isLoading ? (
-              <div className="flex justify-center py-20">
-                <div className="animate-spin w-10 h-10 border-4 border-primary border-t-transparent rounded-full" />
+              /* Skeletons */
+              <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                <div style={{
+                  height: 340, borderRadius: 18,
+                  background: "linear-gradient(90deg, #ece9e0 25%, #f5f2ea 50%, #ece9e0 75%)",
+                  backgroundSize: "200% 100%",
+                  animation: "fadeUp 1.5s ease infinite",
+                  border: "1.5px solid #e8e5de",
+                }} />
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+                  {[0, 1, 2, 4].map((i) => (
+                    <div key={i} style={{
+                      height: 280, borderRadius: 16,
+                      background: "#ece9e0",
+                      border: "1.5px solid #e8e5de",
+                    }} />
+                  ))}
+                </div>
               </div>
             ) : articles.length === 0 ? (
-              <div className="text-center py-20 bg-white rounded-3xl border-2 border-dashed border-[#e8e5de]">
-                <BookOpen className="w-16 h-16 text-slate-200 mx-auto mb-4" />
-                <p className="text-slate-600 font-semibold text-lg">Tidak ada artikel</p>
-                <p className="text-slate-400 text-sm mt-1">Coba gunakan kata kunci atau kategori lain.</p>
+              /* Empty state */
+              <div style={{
+                textAlign: "center", padding: "80px 24px",
+                background: "#fff", borderRadius: 18,
+                border: "1.5px dashed #e8e5de",
+              }}>
+                <BookOpen size={48} style={{ color: "#ddd", margin: "0 auto 16px" }} />
+                <p style={{ fontWeight: 600, color: "#666", marginBottom: 4 }}>
+                  Artikel tidak ditemukan
+                </p>
+                <p style={{ fontSize: 14, color: "#aaa" }}>
+                  Coba kata kunci atau kategori lain
+                </p>
               </div>
             ) : (
               <>
-                {/* 1. FEATURED ARTICLE (Top) */}
+                {/* ── FEATURED CARD ── */}
                 {featuredArticle && (
                   <div
+                    className="featured-card fade-up"
                     onClick={() => onArticleClick?.(featuredArticle)}
-                    className="group flex flex-col md:flex-row bg-white rounded-3xl overflow-hidden border-2 border-[#e8e5de] hover:shadow-[0_16px_40px_rgba(0,0,0,0.06)] hover:-translate-y-1 transition-all duration-300 cursor-pointer"
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      background: "#fff",
+                      borderRadius: 18,
+                      overflow: "hidden",
+                      border: "1.5px solid #e8e5de",
+                      cursor: "pointer",
+                    }}
                   >
                     {/* Thumbnail */}
-                    <div className="w-full md:w-[45%] h-[250px] md:h-[340px] bg-slate-100 overflow-hidden relative">
+                    <div className="img-wrapper" style={{ height: 300 }}>
                       {featuredArticle.coverImage ? (
-                        <img 
-                          src={featuredArticle.coverImage} 
-                          alt={featuredArticle.title} 
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
+                        <img
+                          src={featuredArticle.coverImage}
+                          alt={featuredArticle.title}
+                          className="thumb-img"
+                          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                         />
                       ) : (
-                        <div className="w-full h-full bg-gradient-to-br from-[#c8a97e] to-[#8b6b4a]" />
+                        <div
+                          className="thumb-img"
+                          style={{
+                            width: "100%", height: "100%",
+                            background: getGradient(featuredArticle.id),
+                          }}
+                        />
                       )}
                     </div>
 
-                    {/* Content */}
-                    <div className="w-full md:w-[55%] p-6 md:p-10 flex flex-col justify-center">
-                      <div className="flex items-center gap-3 mb-4">
-                        <span className="inline-block px-3 py-1 bg-[#fff8e1] text-[#e6a800] text-[10px] font-bold uppercase tracking-wider rounded-full">
+                    {/* Info */}
+                    <div style={{
+                      padding: "36px 32px",
+                      display: "flex", flexDirection: "column",
+                      justifyContent: "center", gap: 12,
+                    }}>
+                      {/* Tags */}
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <span style={{
+                          display: "inline-block", fontSize: 11, fontWeight: 600,
+                          letterSpacing: "0.05em", textTransform: "uppercase",
+                          color: "#e6a800", background: "#fff8e1",
+                          borderRadius: 20, padding: "3px 10px",
+                        }}>
                           Utama
                         </span>
-                        <span className="inline-block px-3 py-1 bg-[#f0eeff] text-primary text-[10px] font-bold uppercase tracking-wider rounded-full">
-                          {featuredArticle.tags?.[0] || "Umum"}
+                        {featuredArticle.tags?.[0] && (
+                          <span style={{
+                            display: "inline-block", fontSize: 11, fontWeight: 600,
+                            letterSpacing: "0.05em", textTransform: "uppercase",
+                            color: "#5b4fcf", background: "#f0eeff",
+                            borderRadius: 20, padding: "3px 10px",
+                          }}>
+                            {featuredArticle.tags[0]}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Title */}
+                      <div
+                        className="fraunces"
+                        style={{ fontSize: 24, fontWeight: 700, lineHeight: 1.25, color: "#111" }}
+                      >
+                        {featuredArticle.title}
+                      </div>
+
+                      {/* Excerpt */}
+                      <div style={{
+                        fontSize: 14, color: "#888", lineHeight: 1.6,
+                        display: "-webkit-box",
+                        WebkitLineClamp: 3,
+                        WebkitBoxOrient: "vertical" as any,
+                        overflow: "hidden",
+                      }}>
+                        {featuredArticle.description || featuredArticle.excerpt}
+                      </div>
+
+                      {/* Stats */}
+                      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                        <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#aaa" }}>
+                          <Eye size={12} /> {featuredArticle.views ?? 0}
+                        </span>
+                        <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#aaa" }}>
+                          <Heart size={12} /> {featuredArticle.likes ?? 0}
                         </span>
                       </div>
 
-                      <h3 className="text-2xl md:text-3xl font-bold text-slate-900 mb-3 leading-snug group-hover:text-primary transition-colors">
-                        {featuredArticle.title}
-                      </h3>
-                      
-                      <p className="text-slate-500 text-sm md:text-base mb-6 line-clamp-2 md:line-clamp-3 leading-relaxed">
-                        {featuredArticle.description}
-                      </p>
-
-                      <div className="flex items-center justify-between mt-auto">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-primary font-bold text-sm overflow-hidden border border-slate-200">
-                            {featuredArticle.authorAvatar ? (
-                              <img src={featuredArticle.authorAvatar} alt="Author" className="w-full h-full object-cover"/>
-                            ) : (
-                              featuredArticle.author?.charAt(0).toUpperCase() || "A"
-                            )}
+                      {/* Author */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 4 }}>
+                        <div style={{
+                          width: 32, height: 32, borderRadius: "50%",
+                          background: "#e8e5de",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          fontSize: 12, fontWeight: 700,
+                          color: "#5b4fcf", flexShrink: 0, overflow: "hidden",
+                        }}>
+                          {featuredArticle.authorAvatar ? (
+                            <img
+                              src={featuredArticle.authorAvatar}
+                              alt={featuredArticle.author}
+                              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                            />
+                          ) : initials(featuredArticle.author)}
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 600, color: "#111", fontSize: 13 }}>
+                            {featuredArticle.author}
                           </div>
-                          <div>
-                            <p className="font-semibold text-sm text-slate-900">{featuredArticle.author || "Penulis"}</p>
-                            <p className="text-xs text-slate-500">5 min read</p>
+                          <div style={{ fontSize: 12, color: "#aaa" }}>
+                            {readTime(featuredArticle.description)}
                           </div>
                         </div>
 
-                        <div className="w-10 h-10 rounded-full border-2 border-[#e8e5de] flex items-center justify-center text-slate-600 group-hover:bg-primary group-hover:border-primary group-hover:text-white transition-all">
-                          <ArrowUpRight className="w-5 h-5" />
+                        {/* Arrow button */}
+                        <div style={{ marginLeft: "auto" }}>
+                          <div
+                            className="link-btn"
+                            style={{
+                              width: 30, height: 30, borderRadius: "50%",
+                              border: "1.5px solid #e8e5de",
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                              color: "#111",
+                            }}
+                          >
+                            <ArrowUpRight size={14} />
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
                 )}
 
-                {/* 2. GRID ARTICLES (Bottom) */}
+                {/* ── GRID CARDS ── */}
                 {gridArticles.length > 0 && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    {gridArticles.map((article) => (
+                  <div style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(2, 1fr)",
+                    gap: 20,
+                  }}>
+                    {gridArticles.map((article, idx) => (
                       <div
                         key={article.id}
+                        className={`article-card fade-up-${Math.min(idx + 1, 5)}`}
                         onClick={() => onArticleClick?.(article)}
-                        className="group flex flex-col bg-white rounded-3xl overflow-hidden border-2 border-[#e8e5de] hover:shadow-[0_12px_32px_rgba(0,0,0,0.06)] hover:-translate-y-1 transition-all duration-300 cursor-pointer"
+                        style={{
+                          background: "#fff",
+                          borderRadius: 16,
+                          border: "1.5px solid #e8e5de",
+                          overflow: "hidden",
+                          cursor: "pointer",
+                        }}
                       >
                         {/* Thumbnail */}
-                        <div className="w-full h-[200px] overflow-hidden relative bg-slate-100">
+                        <div className="img-wrapper" style={{ height: 200 }}>
                           {article.coverImage ? (
-                            <img 
-                              src={article.coverImage} 
-                              alt={article.title} 
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
+                            <img
+                              src={article.coverImage}
+                              alt={article.title}
+                              className="thumb-img"
+                              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                             />
                           ) : (
-                            <div className="w-full h-full bg-gradient-to-br from-[#a8d8a8] to-[#558b55]" />
+                            <div
+                              className="thumb-img"
+                              style={{
+                                width: "100%", height: "100%",
+                                background: getGradient(article.id),
+                              }}
+                            />
                           )}
                         </div>
 
-                        {/* Content */}
-                        <div className="p-6 flex flex-col flex-1">
-                          <div className="mb-4">
-                            <span className="inline-block px-3 py-1 bg-[#f0eeff] text-primary text-[10px] font-bold uppercase tracking-wider rounded-full">
-                              {article.tags?.[0] || "Umum"}
+                        {/* Info */}
+                        <div style={{ padding: 20 }}>
+                          {/* Tag */}
+                          {article.tags?.[0] && (
+                            <span style={{
+                              display: "inline-block", fontSize: 11, fontWeight: 600,
+                              letterSpacing: "0.05em", textTransform: "uppercase",
+                              color: "#5b4fcf", background: "#f0eeff",
+                              borderRadius: 20, padding: "3px 10px",
+                              marginBottom: 10,
+                            }}>
+                              {article.tags[0]}
                             </span>
+                          )}
+
+                          {/* Title */}
+                          <div
+                            className="fraunces"
+                            style={{
+                              fontSize: 18, fontWeight: 700,
+                              lineHeight: 1.3, color: "#111",
+                              marginBottom: 8,
+                              display: "-webkit-box",
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: "vertical" as any,
+                              overflow: "hidden",
+                            }}
+                          >
+                            {article.title}
                           </div>
 
-                          <h4 className="text-xl font-bold text-slate-900 mb-2 leading-snug group-hover:text-primary transition-colors line-clamp-2">
-                            {article.title}
-                          </h4>
-                          
-                          <p className="text-slate-500 text-sm mb-6 line-clamp-2 leading-relaxed">
-                            {article.description}
-                          </p>
+                          {/* Excerpt */}
+                          <div style={{
+                            fontSize: 13, color: "#888", lineHeight: 1.6,
+                            marginBottom: 14,
+                            display: "-webkit-box",
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: "vertical" as any,
+                            overflow: "hidden",
+                          }}>
+                            {article.description || article.excerpt}
+                          </div>
 
-                          {/* Spacer to push footer down */}
-                          <div className="flex-1" />
-
-                          <div className="flex items-center justify-between pt-2">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-primary font-bold text-xs overflow-hidden border border-slate-200">
-                                {article.authorAvatar ? (
-                                  <img src={article.authorAvatar} alt="Author" className="w-full h-full object-cover"/>
-                                ) : (
-                                  article.author?.charAt(0).toUpperCase() || "A"
-                                )}
+                          {/* Author + link */}
+                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <div style={{
+                              width: 28, height: 28, borderRadius: "50%",
+                              background: "#e8e5de",
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                              fontSize: 11, fontWeight: 700,
+                              color: "#5b4fcf", flexShrink: 0, overflow: "hidden",
+                            }}>
+                              {article.authorAvatar ? (
+                                <img
+                                  src={article.authorAvatar}
+                                  alt={article.author}
+                                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                                />
+                              ) : initials(article.author)}
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{
+                                fontWeight: 600, color: "#111", fontSize: 12,
+                                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                              }}>
+                                {article.author}
                               </div>
-                              <div>
-                                <p className="font-semibold text-xs text-slate-900">{article.author || "Penulis"}</p>
-                                <p className="text-[11px] text-slate-500">5 min read</p>
+                              <div style={{ fontSize: 11, color: "#aaa" }}>
+                                {readTime(article.description)}
                               </div>
                             </div>
-
-                            <div className="w-8 h-8 rounded-full border-2 border-[#e8e5de] flex items-center justify-center text-slate-600 group-hover:bg-primary group-hover:border-primary group-hover:text-white transition-all">
-                              <ArrowUpRight className="w-4 h-4" />
+                            <div
+                              className="link-btn"
+                              style={{
+                                width: 28, height: 28, borderRadius: "50%",
+                                border: "1.5px solid #e8e5de",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                color: "#111", flexShrink: 0,
+                              }}
+                            >
+                              <ArrowUpRight size={13} />
                             </div>
                           </div>
                         </div>

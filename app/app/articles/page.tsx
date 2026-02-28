@@ -1,211 +1,327 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Search, Heart, Eye, Calendar, Tag, BookOpen } from "lucide-react"
-import { getArticlesWithAuthorData, getAllArticleTags, getArticlesByTag } from "@/lib/firebase"
+import { Search, ArrowLeft, ArrowUpRight, Eye, Heart, ChevronDown, BookOpen } from "lucide-react"
+import { getArticlesWithAuthorData, getAllArticleTags } from "@/lib/firebase"
+import { useRouter } from "next/navigation"
+
+const GRADIENTS = [
+  "linear-gradient(135deg, #c8a97e 0%, #8b6b4a 100%)",
+  "linear-gradient(135deg, #a8d8a8 0%, #2d6a4f 100%)",
+  "linear-gradient(135deg, #b8c8e8 0%, #1d4e89 100%)",
+  "linear-gradient(135deg, #e8c8a8 0%, #c08060 100%)",
+  "linear-gradient(135deg, #d8a8e8 0%, #7b4fa5 100%)",
+  "linear-gradient(135deg, #f0e8c0 0%, #c8a020 100%)",
+  "linear-gradient(135deg, #c0e8e8 0%, #1a7a8a 100%)",
+  "linear-gradient(135deg, #e8a8b8 0%, #a03060 100%)",
+]
+
+const DEFAULT_CATEGORIES = [
+  "Semua Kategori",
+  "Keuangan & Bisnis",
+  "Pertanian",
+  "Peternakan",
+  "Kesehatan",
+  "Teknologi",
+  "Berita",
+  "Tips & Trik",
+]
+
+const DUMMY_ARTICLES = [
+  { id: "d1", title: "Cara Cerdas Mengembangkan Usaha Tani dengan Modal Koperasi", description: "Panduan lengkap memanfaatkan fasilitas pinjaman koperasi untuk meningkatkan hasil pertanian dan pendapatan keluarga petani.", tags: ["Pertanian"], author: "Tubagus Ahmad", views: 3240, likes: 210, coverImage: "", createdAt: { toDate: () => new Date("2024-11-15") } },
+  { id: "d2", title: "Strategi UMKM Go Digital: Dari Pasar Tradisional ke Marketplace", description: "Transformasi usaha kecil menengah ke platform digital terbukti meningkatkan omzet hingga 3x lipat dalam 6 bulan pertama.", tags: ["Keuangan & Bisnis"], author: "Dewi Lestari", views: 2180, likes: 145, coverImage: "", createdAt: { toDate: () => new Date("2024-11-10") } },
+  { id: "d3", title: "Kesehatan Jiwa Petani: Mengelola Tekanan di Musim Panen", description: "Bagaimana komunitas koperasi bisa saling mendukung kesehatan mental antar anggota di tengah tantangan agraris.", tags: ["Kesehatan"], author: "dr. Wahyu Subagyo", views: 1870, likes: 98, coverImage: "", createdAt: { toDate: () => new Date("2024-11-05") } },
+  { id: "d4", title: "IoT & Sensor Tanah: Teknologi Murah untuk Panen Maksimal", description: "Alat sensor tanah berbasis IoT kini bisa diakses UMKM dengan harga terjangkau dan hasil yang luar biasa.", tags: ["Teknologi"], author: "Roni Hermawan", views: 1540, likes: 88, coverImage: "", createdAt: { toDate: () => new Date("2024-10-28") } },
+  { id: "d5", title: "Hasil Ternak Sapi Potong: Menghitung Untung Bersih yang Realistis", description: "Analisis biaya produksi dan proyeksi keuntungan beternak sapi potong skala rumahan dengan dukungan koperasi.", tags: ["Peternakan"], author: "Hendra Wijaya", views: 2650, likes: 175, coverImage: "", createdAt: { toDate: () => new Date("2024-10-20") } },
+  { id: "d6", title: "Raih Sertifikasi Halal UMKM: Langkah Demi Langkah", description: "Panduan praktis mengurus sertifikasi halal produk UMKM agar bisa menembus pasar modern dan ekspor.", tags: ["Keuangan & Bisnis"], author: "Siti Rahayu", views: 1920, likes: 134, coverImage: "", createdAt: { toDate: () => new Date("2024-10-15") } },
+  { id: "d7", title: "Tips Menjaga Kualitas Beras Organik Selama Penyimpanan", description: "Teknik penyimpanan pasca panen yang benar untuk mempertahankan kualitas dan nilai jual beras organik.", tags: ["Pertanian"], author: "Agus Santoso", views: 1340, likes: 72, coverImage: "", createdAt: { toDate: () => new Date("2024-10-08") } },
+]
+
+function getGradient(id: string) {
+  const idx = Math.abs(id.split("").reduce((a, c) => a + c.charCodeAt(0), 0)) % GRADIENTS.length
+  return GRADIENTS[idx]
+}
+
+function initials(name?: string) {
+  if (!name) return "A"
+  return name.split(" ").slice(0, 2).map((w: string) => w[0]?.toUpperCase() ?? "").join("")
+}
+
+function formatDate(createdAt: any) {
+  try {
+    const date = createdAt?.toDate ? createdAt.toDate() : new Date(createdAt)
+    if (!date || isNaN(date.getTime())) return ""
+    return date.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })
+  } catch { return "" }
+}
+
+function readTime(text?: string) {
+  if (!text) return "5 min baca"
+  return `${Math.max(1, Math.round(text.split(" ").length / 200))} min baca`
+}
 
 export default function ArticleDiscoveryPage() {
-  const [articles, setArticles] = useState<any[]>([])
+  const router = useRouter()
   const [allArticles, setAllArticles] = useState<any[]>([])
-  const [tags, setTags] = useState<string[]>([])
-  const [selectedTags, setSelectedTags] = useState<string[]>([])
+  const [articles, setArticles] = useState<any[]>([])
+  const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES)
+  const [activeCategory, setActiveCategory] = useState("Semua Kategori")
   const [searchTerm, setSearchTerm] = useState("")
+  const [sortBy, setSortBy] = useState("newest")
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true)
       try {
-        const articlesData = await getArticlesWithAuthorData(30)
-        setAllArticles(articlesData)
-        setArticles(articlesData)
-
-        const tagsData = await getAllArticleTags()
-        setTags(tagsData)
-      } catch (error) {
-        console.error("Error fetching data:", error)
+        const dbArticles = await getArticlesWithAuthorData(30)
+        const dbTags = await getAllArticleTags()
+        const merged = dbArticles.length > 0
+          ? [...dbArticles, ...DUMMY_ARTICLES.filter(d => !dbArticles.find((a: any) => a.id === d.id))]
+          : DUMMY_ARTICLES
+        setAllArticles(merged)
+        setArticles(merged)
+        if (dbTags.length > 0) {
+          setCategories(Array.from(new Set(["Semua Kategori", ...DEFAULT_CATEGORIES.slice(1), ...dbTags])))
+        }
+      } catch {
+        setAllArticles(DUMMY_ARTICLES)
+        setArticles(DUMMY_ARTICLES)
       } finally {
         setIsLoading(false)
       }
     }
-
     fetchData()
   }, [])
 
-  const handleTagClick = async (tag: string) => {
-    const newSelectedTags = selectedTags.includes(tag)
-      ? selectedTags.filter((t) => t !== tag)
-      : [...selectedTags, tag]
-
-    setSelectedTags(newSelectedTags)
-
-    if (newSelectedTags.length === 0) {
-      setArticles(allArticles)
-    } else {
-      const filtered = allArticles.filter((article) =>
-        newSelectedTags.some((tag) => (article.tags || []).includes(tag)),
-      )
-      setArticles(filtered)
+  useEffect(() => {
+    let result = [...allArticles]
+    if (activeCategory !== "Semua Kategori") {
+      result = result.filter(a => a.tags?.includes(activeCategory))
     }
-  }
-
-  const handleSearch = (term: string) => {
-    setSearchTerm(term)
-    const searchResults = allArticles.filter((article) => {
-      const matchesSearch =
-        article.title?.toLowerCase().includes(term.toLowerCase()) ||
-        article.description?.toLowerCase().includes(term.toLowerCase()) ||
-        article.author?.toLowerCase().includes(term.toLowerCase())
-
-      const matchesTags =
-        selectedTags.length === 0 ||
-        selectedTags.some((tag) => (article.tags || []).includes(tag))
-
-      return matchesSearch && matchesTags
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase()
+      result = result.filter(a =>
+        a.title?.toLowerCase().includes(q) ||
+        a.description?.toLowerCase().includes(q) ||
+        a.author?.toLowerCase().includes(q)
+      )
+    }
+    if (sortBy === "oldest") result.reverse()
+    else if (sortBy === "popular") result.sort((a, b) => (b.views ?? 0) - (a.views ?? 0))
+    else result.sort((a, b) => {
+      const ta = a.createdAt?.toDate?.()?.getTime?.() ?? 0
+      const tb = b.createdAt?.toDate?.()?.getTime?.() ?? 0
+      return tb - ta
     })
+    setArticles(result)
+  }, [activeCategory, searchTerm, sortBy, allArticles])
 
-    setArticles(searchResults)
-  }
-
-  const defaultTags = ["Keuangan & Bisnis", "Hasil Tani", "Kesehatan", "Teknologi", "Berita", "Tips & Trik"]
+  const featured = articles[0] ?? null
+  const grid = articles.slice(1)
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 p-4 pb-24">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-slate-900 mb-2">Jelajahi Artikel</h1>
-        <p className="text-slate-600">Temukan artikel menarik dari komunitas koperasi</p>
-      </div>
+    <div style={{ background: "#f9f8f5", minHeight: "100vh", fontFamily: "'DM Sans', sans-serif" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@400;700;900&family=DM+Sans:wght@300;400;500;600&display=swap');
+        .fraunces { font-family: 'Fraunces', serif; }
+        .art-card  { transition: box-shadow .22s, transform .22s; cursor: pointer; }
+        .art-card:hover  { box-shadow: 0 12px 32px rgba(0,0,0,.09); transform: translateY(-2px); }
+        .feat-card { transition: box-shadow .22s, transform .22s; cursor: pointer; }
+        .feat-card:hover { box-shadow: 0 16px 40px rgba(0,0,0,.09); transform: translateY(-2px); }
+        .img-wrap { overflow: hidden; }
+        .thumb { transition: transform .6s; display: block; }
+        .art-card:hover .thumb, .feat-card:hover .thumb { transform: scale(1.05); }
+        .arrow-btn { transition: background .15s, border-color .15s, color .15s; }
+        .arrow-btn:hover { background: #1e3a5f !important; border-color: #1e3a5f !important; color: #fff !important; }
+        .cat-btn { border: none; background: transparent; cursor: pointer; text-align: left; font-family: inherit; transition: background .15s, color .15s; }
+        .cat-btn:hover  { background: #e8f0fe; color: #1e3a5f; }
+        .cat-btn.active { background: #e8f0fe; color: #1e3a5f; font-weight: 600; }
+        .search-wrap:focus-within { border-color: #1e3a5f !important; }
+        .sort-sel { appearance: none; cursor: pointer; }
+        .sort-sel:focus { outline: none; border-color: #1e3a5f !important; }
+        .back-btn { transition: border-color .15s, color .15s; cursor: pointer; }
+        .back-btn:hover { border-color: #1e3a5f !important; color: #1e3a5f !important; }
+        @keyframes fadeUp { from { opacity:0; transform:translateY(18px); } to { opacity:1; transform:translateY(0); } }
+        .fu  { animation: fadeUp .45s ease both; }
+        .fu1 { animation: fadeUp .45s .05s ease both; }
+        .fu2 { animation: fadeUp .45s .10s ease both; }
+        .fu3 { animation: fadeUp .45s .15s ease both; }
+        .fu4 { animation: fadeUp .45s .20s ease both; }
+        .fu5 { animation: fadeUp .45s .25s ease both; }
+        @media (max-width: 768px) {
+          .body-grid  { grid-template-columns: 1fr !important; }
+          .sidebar    { position: static !important; }
+          .feat-inner { grid-template-columns: 1fr !important; }
+          .feat-thumb { height: 220px !important; }
+          .cards-grid { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
 
-      {/* Search Bar */}
-      <div className="relative mb-6">
-        <Search className="absolute left-4 top-3.5 w-5 h-5 text-slate-400" />
-        <input
-          type="text"
-          placeholder="Cari judul, penulis, atau deskripsi..."
-          value={searchTerm}
-          onChange={(e) => handleSearch(e.target.value)}
-          className="w-full pl-12 pr-4 py-3 border-2 border-slate-300 rounded-xl focus:outline-none focus:border-primary focus:ring-2 focus:ring-blue-100 text-slate-900"
-        />
-      </div>
+      <div style={{ maxWidth: 1180, margin: "0 auto", padding: "0 24px 80px" }}>
 
-      {/* Category Tags */}
-      <div className="mb-6">
-        <h3 className="text-sm font-semibold text-slate-600 mb-3 flex items-center gap-2">
-          <Tag className="w-4 h-4" />
-          Kategori
-        </h3>
-        <div className="flex gap-2 overflow-x-auto pb-2">
-          {defaultTags.map((tag) => (
-            <button
-              key={tag}
-              onClick={() => handleTagClick(tag)}
-              className={`px-4 py-2 rounded-full font-semibold transition whitespace-nowrap ${
-                selectedTags.includes(tag)
-                  ? "bg-primary text-white"
-                  : "bg-white text-primary border-2 border-primary hover:bg-blue-50"
-              }`}
-            >
-              {tag}
-            </button>
-          ))}
+        {/* Back */}
+        <div style={{ paddingTop: 28, marginBottom: 4 }}>
+          <button
+            className="back-btn"
+            onClick={() => router.back()}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 8,
+              background: "#fff", border: "1.5px solid #e8e5de",
+              borderRadius: 40, padding: "8px 18px 8px 12px",
+              fontSize: 13, fontWeight: 500, color: "#555",
+              boxShadow: "0 1px 4px rgba(0,0,0,.06)",
+            }}
+          >
+            <span style={{ width: 26, height: 26, borderRadius: "50%", background: "#e8f0fe", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <ArrowLeft size={14} style={{ color: "#1e3a5f" }} />
+            </span>
+            Kembali
+          </button>
         </div>
-      </div>
 
-      {/* Active Filters */}
-      {selectedTags.length > 0 && (
-        <div className="mb-4 p-3 bg-blue-100 rounded-lg">
-          <div className="flex flex-wrap gap-2 items-center">
-            <span className="text-sm font-semibold text-primary">Filter aktif:</span>
-            {selectedTags.map((tag) => (
-              <button
-                key={tag}
-                onClick={() => handleTagClick(tag)}
-                className="px-3 py-1 bg-white text-primary rounded-full text-sm font-semibold hover:bg-slate-100 transition"
-              >
-                {tag} ✕
-              </button>
-            ))}
-          </div>
+        {/* Hero */}
+        <div style={{ padding: "44px 0 36px", textAlign: "center" }}>
+          <span style={{ display: "inline-block", fontSize: 12, fontWeight: 600, color: "#1e3a5f", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 14 }}>
+            Baca &amp; Pelajari
+          </span>
+          <h1 className="fraunces" style={{ fontSize: "clamp(32px, 5vw, 58px)", fontWeight: 900, lineHeight: 1.05, letterSpacing: "-0.02em", color: "#111", marginBottom: 12 }}>
+            Jelajahi Artikel Koperasi
+          </h1>
+          <p style={{ fontSize: 16, color: "#888", maxWidth: 400, margin: "0 auto" }}>
+            Panduan, berita, dan wawasan dari komunitas untuk mengembangkan usaha bersama.
+          </p>
         </div>
-      )}
 
-      {/* Articles Grid */}
-      {isLoading ? (
-        <div className="flex justify-center py-12">
-          <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
-        </div>
-      ) : articles.length === 0 ? (
-        <div className="text-center py-12">
-          <BookOpen className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-          <p className="text-slate-600 font-semibold">Tidak ada artikel ditemukan</p>
-          <p className="text-slate-500 text-sm">Coba ubah filter atau pencarian Anda</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {articles.map((article) => (
-            <div
-              key={article.id}
-              className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition overflow-hidden cursor-pointer border-l-4 border-primary"
-            >
-              {/* Article Image */}
-              {article.coverImage && (
-                <div className="h-40 bg-gradient-to-br from-blue-200 to-indigo-200 flex items-center justify-center overflow-hidden">
-                  <img src={article.coverImage} alt={article.title} className="w-full h-full object-cover" />
+        {/* Body Grid */}
+        <div className="body-grid" style={{ display: "grid", gridTemplateColumns: "240px 1fr", gap: 40, alignItems: "start" }}>
+
+          {/* Sidebar */}
+          <aside className="sidebar" style={{ position: "sticky", top: 24 }}>
+            {/* Search */}
+            <div style={{ marginBottom: 28 }}>
+              <span style={{ display: "block", fontSize: 11, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: "#aaa", marginBottom: 10 }}>Pencarian</span>
+              <div className="search-wrap" style={{ display: "flex", alignItems: "center", gap: 8, background: "#fff", border: "1.5px solid #e8e5de", borderRadius: 10, padding: "10px 14px" }}>
+                <Search size={16} style={{ color: "#aaa", flexShrink: 0 }} />
+                <input type="text" placeholder="Cari artikel..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+                  style={{ border: "none", outline: "none", background: "transparent", fontFamily: "inherit", fontSize: 14, width: "100%", color: "#111" }} />
+              </div>
+            </div>
+
+            {/* Sort */}
+            <div style={{ marginBottom: 28 }}>
+              <span style={{ display: "block", fontSize: 11, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: "#aaa", marginBottom: 10 }}>Urutkan</span>
+              <div style={{ position: "relative" }}>
+                <select className="sort-sel" value={sortBy} onChange={e => setSortBy(e.target.value)}
+                  style={{ width: "100%", background: "#fff", border: "1.5px solid #e8e5de", borderRadius: 10, padding: "10px 36px 10px 14px", fontFamily: "inherit", fontSize: 14, color: "#666" }}>
+                  <option value="newest">Terbaru</option>
+                  <option value="oldest">Terlama</option>
+                  <option value="popular">Terpopuler</option>
+                </select>
+                <ChevronDown size={14} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "#aaa", pointerEvents: "none" }} />
+              </div>
+            </div>
+
+            {/* Categories */}
+            <div>
+              <span style={{ display: "block", fontSize: 11, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: "#aaa", marginBottom: 10 }}>Kategori</span>
+              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                {categories.map(cat => (
+                  <button key={cat} onClick={() => setActiveCategory(cat)} className={`cat-btn ${activeCategory === cat ? "active" : ""}`}
+                    style={{ padding: "8px 12px", borderRadius: 8, fontSize: 14, width: "100%", color: activeCategory === cat ? "#1e3a5f" : "#444" }}>
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </aside>
+
+          {/* Main */}
+          <main style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+            {isLoading ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                <div style={{ height: 320, borderRadius: 18, background: "#ece9e0", border: "1.5px solid #e8e5de" }} />
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+                  {[0,1,2,3].map(i => <div key={i} style={{ height: 280, borderRadius: 16, background: "#ece9e0" }} />)}
                 </div>
-              )}
-
-              {/* Article Content */}
-              <div className="p-6">
-                {/* Category Tags */}
-                {article.tags && article.tags.length > 0 && (
-                  <div className="flex gap-2 mb-3 flex-wrap">
-                    {article.tags.slice(0, 2).map((tag: string) => (
-                      <span
-                        key={tag}
-                        className="px-2 py-1 bg-blue-100 text-primary rounded text-xs font-semibold"
-                      >
-                        {tag}
-                      </span>
-                    ))}
+              </div>
+            ) : articles.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "80px 24px", background: "#fff", borderRadius: 18, border: "1.5px dashed #e8e5de" }}>
+                <BookOpen size={48} style={{ color: "#ddd", margin: "0 auto 16px" }} />
+                <p style={{ fontWeight: 600, color: "#666", marginBottom: 4 }}>Artikel tidak ditemukan</p>
+                <p style={{ fontSize: 14, color: "#aaa" }}>Coba kata kunci atau kategori lain</p>
+              </div>
+            ) : (
+              <>
+                {/* Featured */}
+                {featured && (
+                  <div className="feat-card fu feat-inner" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", background: "#fff", borderRadius: 18, overflow: "hidden", border: "1.5px solid #e8e5de" }}>
+                    <div className="img-wrap feat-thumb" style={{ height: 300 }}>
+                      {featured.coverImage
+                        ? <img src={featured.coverImage} alt={featured.title} className="thumb" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        : <div className="thumb" style={{ width: "100%", height: "100%", background: getGradient(featured.id) }} />}
+                    </div>
+                    <div style={{ padding: "36px 32px", display: "flex", flexDirection: "column", justifyContent: "center", gap: 12 }}>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase", color: "#e6a800", background: "#fff8e1", borderRadius: 20, padding: "3px 10px" }}>Utama</span>
+                        {featured.tags?.[0] && <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase", color: "#1e3a5f", background: "#e8f0fe", borderRadius: 20, padding: "3px 10px" }}>{featured.tags[0]}</span>}
+                      </div>
+                      <div className="fraunces" style={{ fontSize: 24, fontWeight: 700, lineHeight: 1.25, color: "#111" }}>{featured.title}</div>
+                      <div style={{ fontSize: 14, color: "#888", lineHeight: 1.6, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" as any, overflow: "hidden" }}>{featured.description}</div>
+                      <div style={{ display: "flex", gap: 12 }}>
+                        <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#aaa" }}><Eye size={12} /> {featured.views ?? 0}</span>
+                        <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#aaa" }}><Heart size={12} /> {featured.likes ?? 0}</span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 4 }}>
+                        <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#e8e5de", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#1e3a5f", flexShrink: 0 }}>{initials(featured.author)}</div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 600, color: "#111", fontSize: 13 }}>{featured.author}</div>
+                          <div style={{ fontSize: 12, color: "#aaa" }}>{formatDate(featured.createdAt) || readTime(featured.description)}</div>
+                        </div>
+                        <div className="arrow-btn" style={{ width: 30, height: 30, borderRadius: "50%", border: "1.5px solid #e8e5de", display: "flex", alignItems: "center", justifyContent: "center", color: "#111" }}>
+                          <ArrowUpRight size={14} />
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
 
-                {/* Title */}
-                <h3 className="font-bold text-lg text-slate-900 mb-2 line-clamp-2">{article.title}</h3>
-
-                {/* Description */}
-                <p className="text-sm text-slate-600 mb-4 line-clamp-2">{article.description}</p>
-
-                {/* Author Info */}
-                <div className="flex items-center gap-3 mb-4 pb-4 border-b border-slate-200">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-blue-600 flex items-center justify-center text-white font-bold text-sm">
-                    {article.author?.charAt(0).toUpperCase() || "A"}
+                {/* Grid */}
+                {grid.length > 0 && (
+                  <div className="cards-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 20 }}>
+                    {grid.map((article, idx) => (
+                      <div key={article.id} className={`art-card fu${Math.min(idx + 1, 5)}`} style={{ background: "#fff", borderRadius: 16, border: "1.5px solid #e8e5de", overflow: "hidden" }}>
+                        <div className="img-wrap" style={{ height: 200 }}>
+                          {article.coverImage
+                            ? <img src={article.coverImage} alt={article.title} className="thumb" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                            : <div className="thumb" style={{ width: "100%", height: "100%", background: getGradient(article.id) }} />}
+                        </div>
+                        <div style={{ padding: 20 }}>
+                          {article.tags?.[0] && (
+                            <span style={{ display: "inline-block", fontSize: 11, fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase", color: "#1e3a5f", background: "#e8f0fe", borderRadius: 20, padding: "3px 10px", marginBottom: 10 }}>{article.tags[0]}</span>
+                          )}
+                          <div className="fraunces" style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.3, color: "#111", marginBottom: 8, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as any, overflow: "hidden" }}>{article.title}</div>
+                          <div style={{ fontSize: 13, color: "#888", lineHeight: 1.6, marginBottom: 14, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as any, overflow: "hidden" }}>{article.description}</div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#e8e5de", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#1e3a5f", flexShrink: 0 }}>{initials(article.author)}</div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontWeight: 600, color: "#111", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{article.author}</div>
+                              <div style={{ fontSize: 11, color: "#aaa" }}>{formatDate(article.createdAt) || readTime(article.description)}</div>
+                            </div>
+                            <div className="arrow-btn" style={{ width: 28, height: 28, borderRadius: "50%", border: "1.5px solid #e8e5de", display: "flex", alignItems: "center", justifyContent: "center", color: "#111", flexShrink: 0 }}>
+                              <ArrowUpRight size={13} />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-sm text-slate-900 truncate">{article.author || "Penulis"}</p>
-                    <p className="text-xs text-slate-500">
-                      {article.createdAt && new Date(article.createdAt).toLocaleDateString("id-ID")}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Stats */}
-                <div className="flex gap-4">
-                  <div className="flex items-center gap-1 text-slate-600">
-                    <Eye className="w-4 h-4" />
-                    <span className="text-xs">{article.views || 0}</span>
-                  </div>
-                  <div className="flex items-center gap-1 text-slate-600">
-                    <Heart className="w-4 h-4" />
-                    <span className="text-xs">{article.likes || 0}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
+                )}
+              </>
+            )}
+          </main>
         </div>
-      )}
+      </div>
     </div>
   )
 }

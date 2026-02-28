@@ -19,6 +19,17 @@ interface FloatingMessageButtonProps {
   unreadMessages?: UnreadMessage[]
 }
 
+const toDate = (value: any): Date | null => {
+  if (!value) return null
+  if (value instanceof Date) return value
+  if (typeof value?.toDate === "function") return value.toDate()
+  if (typeof value === "string" || typeof value === "number") {
+    const parsed = new Date(value)
+    return Number.isNaN(parsed.getTime()) ? null : parsed
+  }
+  return null
+}
+
 export default function FloatingMessageButton({ onOpenFullChat, unreadMessages }: FloatingMessageButtonProps) {
   const { user } = useAuth()
   const [isOpen, setIsOpen] = useState(false)
@@ -159,7 +170,7 @@ export default function FloatingMessageButton({ onOpenFullChat, unreadMessages }
             name: p.senderData?.displayName || "User",
             avatar: p.senderData?.displayName?.charAt(0).toUpperCase() || "U",
             message: p.text || "",
-            timestamp: p.timestamp ? new Date(p.timestamp).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) : "",
+            timestamp: toDate(p.timestamp)?.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) || "",
             unreadCount: 1,
           }))
 
@@ -170,11 +181,15 @@ export default function FloatingMessageButton({ onOpenFullChat, unreadMessages }
               name: c.displayName || c.email || "User",
               avatar: (c.displayName?.charAt(0) || "U").toUpperCase(),
               message: c.lastMessage || "",
-              timestamp: c.lastMessageTime ? new Date(c.lastMessageTime).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) : "",
+              timestamp: toDate(c.lastMessageTime)?.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) || "",
               unreadCount: c.read ? 0 : 1,
           }))
 
-          const combined = [...pendingMapped, ...chatsMapped].slice(0, 10)
+          const dedupedMap = new Map<string, UnreadMessage>()
+          ;[...pendingMapped, ...chatsMapped].forEach((row) => {
+            if (!dedupedMap.has(row.id)) dedupedMap.set(row.id, row)
+          })
+          const combined = Array.from(dedupedMap.values()).slice(0, 10)
 
           if (mounted) setItems(combined)
         } catch (err) {

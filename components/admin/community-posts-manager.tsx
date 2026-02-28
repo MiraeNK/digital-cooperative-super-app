@@ -1,196 +1,139 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Trash2, Eye, MessageSquare, ThumbsUp, AlertCircle, Loader2 } from "lucide-react"
-import { getKYCForumPosts, deleteForumPostByAdmin } from "@/lib/firebase"
+import { useEffect, useMemo, useState } from "react"
+import { Loader2, MessageSquare, RefreshCw, ThumbsDown, ThumbsUp, Trash2 } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
+import { deleteForumPostByAdmin, getKYCForumPosts } from "@/lib/firebase"
 
 export default function CommunityPostsManager() {
-  const { user } = useAuth()
+  const { user, userProfile } = useAuth()
   const [posts, setPosts] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [filterType, setFilterType] = useState<"all" | "discussion" | "selling">("all")
 
-  useEffect(() => {
-    fetchPosts()
-  }, [])
+  const isAdmin = userProfile?.role === "admin"
 
-  const fetchPosts = async () => {
+  const stats = useMemo(() => {
+    return {
+      total: posts.length,
+      totalComments: posts.reduce((sum, post) => sum + Number(post.commentCount || 0), 0),
+    }
+  }, [posts])
+
+  const loadPosts = async () => {
     setIsLoading(true)
     try {
-      const postsData = await getKYCForumPosts()
-      setPosts(postsData)
+      const data = await getKYCForumPosts()
+      setPosts(data)
     } catch (error) {
-      console.error("Error fetching posts:", error)
+      console.error("Error fetching community posts:", error)
+      setPosts([])
     } finally {
       setIsLoading(false)
     }
   }
 
-  const handleDeletePost = async (postId: string) => {
-    if (!user) return
-    
-    if (!confirm("Apakah Anda yakin ingin menghapus postingan ini?")) return
+  useEffect(() => {
+    loadPosts()
+  }, [])
+
+  const handleDelete = async (postId: string) => {
+    if (!isAdmin || !user?.uid) {
+      alert("Hanya admin yang bisa menghapus postingan.")
+      return
+    }
+
+    const confirmed = window.confirm("Hapus postingan ini dari komunitas?")
+    if (!confirmed) return
 
     setDeletingId(postId)
     try {
-      await deleteForumPostByAdmin(postId, user.uid, "admin")
-      setPosts(posts.filter((p) => p.id !== postId))
-      alert("Postingan berhasil dihapus")
+      await deleteForumPostByAdmin(postId, user.uid, userProfile?.role || "")
+      setPosts((prev) => prev.filter((post) => post.id !== postId))
     } catch (error) {
       console.error("Error deleting post:", error)
-      alert((error as any)?.message || "Gagal menghapus postingan")
+      alert("Gagal menghapus postingan.")
     } finally {
       setDeletingId(null)
     }
   }
 
-  const filteredPosts = filterType === "all" ? posts : posts.filter((p) => p.type === filterType)
+  const formatDate = (value: any) => {
+    const date = value instanceof Date ? value : value?.toDate?.() ? value.toDate() : null
+    if (!date) return "-"
+    return date.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })
+  }
 
   return (
     <div className="space-y-6 sm:space-y-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 mb-2">Community Posts Manager</h1>
-        <p className="text-slate-600">Kelola dan monitor semua postingan di forum komunitas</p>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        <div className="bg-white border border-slate-200 rounded-xl p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-slate-600 text-sm font-semibold">Total Posts</p>
-              <p className="text-3xl font-bold text-slate-900 mt-2">{posts.length}</p>
-            </div>
-            <MessageSquare className="w-10 h-10 text-primary" />
-          </div>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 mb-2">Community Manager</h1>
+          <p className="text-slate-600">Moderasi diskusi komunitas dan pantau aktivitas member</p>
         </div>
-
-        <div className="bg-white border border-slate-200 rounded-xl p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-slate-600 text-sm font-semibold">Discussions</p>
-              <p className="text-3xl font-bold text-slate-900 mt-2">{posts.filter((p) => p.type === "discussion").length}</p>
-            </div>
-            <Eye className="w-10 h-10 text-blue-500" />
-          </div>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-xl p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-slate-600 text-sm font-semibold">For Sale</p>
-              <p className="text-3xl font-bold text-slate-900 mt-2">{posts.filter((p) => p.type === "selling").length}</p>
-            </div>
-            <ThumbsUp className="w-10 h-10 text-green-500" />
-          </div>
-        </div>
-      </div>
-
-      {/* Filter Buttons */}
-      <div className="flex gap-2">
         <button
-          onClick={() => setFilterType("all")}
-          className={`px-4 py-2 rounded-lg font-semibold transition ${
-            filterType === "all"
-              ? "bg-primary text-white"
-              : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
-          }`}
+          onClick={loadPosts}
+          className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 font-semibold text-slate-700 transition"
         >
-          All Posts
-        </button>
-        <button
-          onClick={() => setFilterType("discussion")}
-          className={`px-4 py-2 rounded-lg font-semibold transition ${
-            filterType === "discussion"
-              ? "bg-primary text-white"
-              : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
-          }`}
-        >
-          Discussions
-        </button>
-        <button
-          onClick={() => setFilterType("selling")}
-          className={`px-4 py-2 rounded-lg font-semibold transition ${
-            filterType === "selling"
-              ? "bg-primary text-white"
-              : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
-          }`}
-        >
-          For Sale
+          <RefreshCw className="w-4 h-4" />
+          Refresh
         </button>
       </div>
 
-      {/* Posts List */}
-      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="bg-white border border-slate-200 rounded-xl p-5">
+          <p className="text-sm font-semibold text-slate-600">Total Postingan</p>
+          <p className="text-3xl font-bold text-slate-900 mt-1">{stats.total}</p>
+        </div>
+        <div className="bg-white border border-slate-200 rounded-xl p-5">
+          <p className="text-sm font-semibold text-slate-600">Total Komentar</p>
+          <p className="text-3xl font-bold text-slate-900 mt-1">{stats.totalComments}</p>
+        </div>
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-xl p-6">
         {isLoading ? (
-          <div className="flex justify-center py-12">
+          <div className="flex items-center justify-center py-12">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
           </div>
-        ) : filteredPosts.length === 0 ? (
-          <div className="text-center py-12 px-4">
-            <MessageSquare className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-            <p className="text-slate-600 font-semibold">Tidak ada postingan</p>
-          </div>
+        ) : posts.length === 0 ? (
+          <div className="text-center py-12 text-slate-500">Belum ada postingan komunitas.</div>
         ) : (
-          <div className="divide-y divide-slate-200">
-            {filteredPosts.map((post) => (
-              <div key={post.id} className="p-6 hover:bg-slate-50 transition">
-                {/* Header */}
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2 flex-wrap">
-                      <h3 className="text-lg font-bold text-slate-900">{post.title}</h3>
-                      <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                        post.type === "discussion"
-                          ? "bg-blue-100 text-blue-700"
-                          : "bg-green-100 text-green-700"
-                      }`}>
-                        {post.type === "discussion" ? "Discussion" : "For Sale"}
-                      </span>
-                      {post.topic && (
-                        <span className="px-2 py-1 bg-primary/10 text-primary rounded text-xs font-semibold">
-                          {post.topic}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm text-slate-600 mb-2">
-                      By <span className="font-semibold text-slate-900">{post.author}</span> • {post.authorEmail}
-                    </p>
-                    <p className="text-sm text-slate-500">
-                      Posted: {post.timestamp?.toLocaleDateString("id-ID")} {post.timestamp?.toLocaleTimeString("id-ID")}
+          <div className="space-y-4">
+            {posts.map((post) => (
+              <div key={post.id} className="border border-slate-200 rounded-lg p-5">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-3">
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-slate-900 line-clamp-1">{post.title || "Tanpa judul"}</h3>
+                    <p className="text-sm text-slate-600 mt-1">
+                      Oleh {post.author || "Unknown"} • {formatDate(post.timestamp || post.createdAt)}
                     </p>
                   </div>
-                </div>
-
-                {/* Content Preview */}
-                <div className="mb-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
-                  <p className="text-sm text-slate-700 line-clamp-3">{post.content}</p>
-                </div>
-
-                {/* Stats */}
-                <div className="flex gap-6 text-sm text-slate-600 mb-4">
-                  <span>👍 {post.upvotes || 0} Upvotes</span>
-                  <span>👎 {post.downvotes || 0} Downvotes</span>
-                  <span>💬 {post.comments?.length || 0} Comments</span>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex gap-2">
                   <button
-                    onClick={() => handleDeletePost(post.id)}
+                    onClick={() => handleDelete(post.id)}
                     disabled={deletingId === post.id}
-                    className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-700 hover:bg-red-100 font-semibold rounded-lg transition disabled:opacity-50 text-sm"
+                    className="inline-flex items-center justify-center gap-2 px-3 py-2 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition font-semibold text-sm disabled:opacity-60"
                   >
-                    {deletingId === post.id ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="w-4 h-4" />
-                    )}
-                    {deletingId === post.id ? "Deleting..." : "Delete Post"}
+                    {deletingId === post.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                    Hapus
                   </button>
+                </div>
+
+                <p className="text-sm text-slate-700 line-clamp-3 mb-4">{post.content || "-"}</p>
+
+                <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600">
+                  <span className="inline-flex items-center gap-1">
+                    <ThumbsUp className="w-4 h-4" />
+                    {Array.isArray(post.upvotes) ? post.upvotes.length : Number(post.upvotes || 0)}
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <ThumbsDown className="w-4 h-4" />
+                    {Array.isArray(post.downvotes) ? post.downvotes.length : Number(post.downvotes || 0)}
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <MessageSquare className="w-4 h-4" />
+                    {Number(post.commentCount || 0)}
+                  </span>
                 </div>
               </div>
             ))}

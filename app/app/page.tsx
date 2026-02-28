@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Monitor, Smartphone, LogOut, PenTool, Loader2 } from "lucide-react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { signOut } from "firebase/auth"
 import { auth } from "@/lib/firebase"
 import { useAuth } from "@/components/auth-provider"
@@ -14,6 +14,7 @@ import { WriterDashboard } from "@/components/writer-dashboard"
 
 export default function AppPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { userProfile, loading, user } = useAuth()
   
   // State untuk mengontrol tampilan yang sedang aktif (bukan role user)
@@ -49,6 +50,7 @@ export default function AppPage() {
 
   // Ambil role dari profile jika tersedia, fallback ke 'member' saat profile belum ada
   const role = (userProfile && userProfile.role) ? userProfile.role : "member"
+  const initialChatId = searchParams.get("chat")
 
   return (
     <div className="min-h-screen bg-background">
@@ -140,7 +142,7 @@ export default function AppPage() {
 
       {/* View Content */}
       <div className="min-h-[calc(100vh-80px)]">
-        {currentView === "member" && <MemberApp />}
+        {currentView === "member" && <MemberApp initialChatId={initialChatId} />}
         
         {/* Validasi render: Pastikan user berhak melihat view ini */}
         {currentView === "admin" && role === "admin" && <AdminDashboard />}

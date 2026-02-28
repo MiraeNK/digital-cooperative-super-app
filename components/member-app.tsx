@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useAuth } from "@/components/auth-provider" // 1. IMPORT HOOK AUTH
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar" // 2. IMPORT UI AVATAR
 import { LogOut } from "lucide-react" // Import icon tambahan jika perlu
@@ -39,7 +39,11 @@ interface Article {
   excerpt: string
 }
 
-export function MemberApp() {
+type MemberAppProps = {
+  initialChatId?: string | null
+}
+
+export function MemberApp({ initialChatId }: MemberAppProps) {
   // --- STATE ---
   const { user, userProfile } = useAuth() // Ambil Data User
   const router = useRouter()
@@ -54,11 +58,15 @@ export function MemberApp() {
 
   // --- LOGIC ---
   const handleTabChange = (tab: string) => {
+    if (tab !== "messaging") {
+      setSelectedChat(null)
+    }
     setNavigationHistory([...navigationHistory, tab])
     setActiveTab(tab)
   }
 
   const handleBack = () => {
+    setSelectedChat(null)
     if (navigationHistory.length > 1) {
       const newHistory = navigationHistory.slice(0, -1)
       setNavigationHistory(newHistory)
@@ -74,7 +82,13 @@ export function MemberApp() {
   // Helper untuk inisial nama
   const getInitials = (name: string) => name ? name.charAt(0).toUpperCase() : "U"
 
-  const isMessagingOpen = activeTab === "messaging" || selectedChat !== null
+  const isMessagingOpen = activeTab === "messaging"
+
+  useEffect(() => {
+    if (!initialChatId) return
+    setSelectedChat(initialChatId)
+    setActiveTab("messaging")
+  }, [initialChatId])
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col lg:flex-row">
