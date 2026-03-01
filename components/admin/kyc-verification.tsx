@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { CheckCircle, XCircle, Clock, User, FileText, Camera, Loader2 } from "lucide-react"
-import { getPendingKYCRequests, updateKYCStatus } from "@/lib/firebase"
+import { CheckCircle, XCircle, Clock, User, Loader2 } from "lucide-react"
+import { subscribeKYCRequests, updateKYCStatus } from "@/lib/firebase"
 
 export default function KYCVerification() {
   const [pendingMembers, setPendingMembers] = useState<any[]>([])
@@ -11,38 +11,23 @@ export default function KYCVerification() {
   const [actioningId, setActioningId] = useState<string | null>(null)
   const [adminNotes, setAdminNotes] = useState<{ [key: string]: string }>({})
 
-  // Fetch pending KYC on mount
   useEffect(() => {
-    fetchPendingKYC()
-  }, [])
-
-  const fetchPendingKYC = async () => {
     setIsLoading(true)
-    try {
-      const pending = await getPendingKYCRequests()
-      // Separate pending and verified
-      const stillPending = pending.filter((m: any) => m.verificationStatus === "pending")
-      const verified = pending.filter((m: any) => m.verificationStatus === "verified")
-      
+    const unsubscribe = subscribeKYCRequests((rows) => {
+      const stillPending = rows.filter((m: any) => m.verificationStatus === "pending")
+      const verified = rows.filter((m: any) => m.verificationStatus === "verified")
       setPendingMembers(stillPending)
       setVerifiedMembers(verified)
-    } catch (error) {
-      console.error("Error fetching KYC data:", error)
-    } finally {
       setIsLoading(false)
-    }
-  }
+    })
+
+    return () => unsubscribe()
+  }, [])
 
   const handleApprove = async (memberId: string) => {
     setActioningId(memberId)
     try {
       await updateKYCStatus(memberId, "verified", "")
-      // Remove from pending and add to verified
-      const member = pendingMembers.find((m) => m.id === memberId)
-      setPendingMembers(pendingMembers.filter((m) => m.id !== memberId))
-      if (member) {
-        setVerifiedMembers([...verifiedMembers, { ...member, verificationStatus: "verified" }])
-      }
     } catch (error) {
       console.error("Error approving KYC:", error)
       alert("Gagal menyetujui KYC. Silakan coba lagi.")
@@ -56,7 +41,6 @@ export default function KYCVerification() {
     const notes = adminNotes[memberId] || ""
     try {
       await updateKYCStatus(memberId, "rejected", notes)
-      setPendingMembers(pendingMembers.filter((m) => m.id !== memberId))
     } catch (error) {
       console.error("Error rejecting KYC:", error)
       alert("Gagal menolak KYC. Silakan coba lagi.")
@@ -149,7 +133,9 @@ export default function KYCVerification() {
                     </div>
                     <div>
                       <p className="text-slate-600 font-semibold">No. KTP</p>
-                      <p className="text-slate-900">{member.ktp || "Belum diupload"}</p>
+                      <p className="text-slate-900">
+                        {member.nik ? `${String(member.nik).slice(0, 4)}********${String(member.nik).slice(-4)}` : "Belum diisi"}
+                      </p>
                     </div>
                     <div>
                       <p className="text-slate-600 font-semibold">Alamat</p>

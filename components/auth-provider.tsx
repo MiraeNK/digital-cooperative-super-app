@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from "react"
 import { onAuthStateChanged, User } from "firebase/auth"
-import { auth, getUserProfile, setUserOnline, setUserOffline } from "@/lib/firebase" 
+import { auth, setUserOnline, setUserOffline, subscribeUserProfile } from "@/lib/firebase" 
 
 type AuthContextType = {
   user: User | null
@@ -53,21 +53,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return
     }
 
+    let unsubscribeProfile: (() => void) | null = null
+    let visibilityHandler: (() => void) | null = null
+    let beforeUnloadHandler: (() => void) | null = null
+
     const unsubscribe = onAuthStateChanged(auth, async (authUser) => {
       setUser(authUser)
       if (authUser) {
-        // Ambil data tambahan (Role) dari database
-        const profile = await getUserProfile(authUser.uid)
-        setUserProfile(profile)
+        if (unsubscribeProfile) unsubscribeProfile()
+        unsubscribeProfile = subscribeUserProfile(authUser.uid, (profile) => {
+          setUserProfile(profile)
+        })
+
         // Mark user online in Firestore presence
         try { await setUserOnline(authUser.uid) } catch (e) { /* ignore */ }
         // on unload / signout mark offline
-        const handleVisibility = async () => {
+        if (visibilityHandler) window.removeEventListener("visibilitychange", visibilityHandler)
+        if (beforeUnloadHandler) window.removeEventListener("beforeunload", beforeUnloadHandler)
+        visibilityHandler = async () => {
           if (document.hidden) await setUserOffline(authUser.uid)
         }
-        window.addEventListener("visibilitychange", handleVisibility)
-        window.addEventListener("beforeunload", async () => { await setUserOffline(authUser.uid) })
+        beforeUnloadHandler = async () => { await setUserOffline(authUser.uid) }
+        window.addEventListener("visibilitychange", visibilityHandler)
+        window.addEventListener("beforeunload", beforeUnloadHandler)
       } else {
+        if (unsubscribeProfile) {
+          unsubscribeProfile()
+          unsubscribeProfile = null
+        }
         setUserProfile(null)
       }
       setLoading(false)
@@ -75,11 +88,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       // cleanup presence listeners and set offline
       unsubscribe()
-      if (user) {
-        try { setUserOffline(user.uid) } catch (e) { /* ignore */ }
+      if (unsubscribeProfile) unsubscribeProfile()
+      if (auth?.currentUser?.uid) {
+        try { setUserOffline(auth.currentUser.uid) } catch (e) { /* ignore */ }
       }
-      window.removeEventListener("visibilitychange", () => {})
-      window.removeEventListener("beforeunload", () => {})
+      if (visibilityHandler) window.removeEventListener("visibilitychange", visibilityHandler)
+      if (beforeUnloadHandler) window.removeEventListener("beforeunload", beforeUnloadHandler)
     }
   }, [])
 

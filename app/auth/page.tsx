@@ -8,8 +8,9 @@ import {
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
   updateProfile, 
-  signInWithPopup // Import untuk Popup Google
+  signInWithPopup, // Import untuk Popup Google
 } from "firebase/auth"
+import type { FirebaseError } from "firebase/app"
 import { auth, googleProvider, createUserProfile } from "@/lib/firebase" // Import googleProvider
 import { useToast } from "@/components/ui/use-toast" // Pastikan import ini ada jika pakai toast
 
@@ -62,6 +63,11 @@ export default function AuthPage() {
   const handleGoogleLogin = async () => {
     setIsLoading(true)
     try {
+      if (!auth || !googleProvider) {
+        alert("Konfigurasi Firebase Auth belum valid. Cek file .env.local Anda.")
+        return
+      }
+
       const result = await signInWithPopup(auth, googleProvider)
       const user = result.user
       
@@ -70,9 +76,16 @@ export default function AuthPage() {
       
       // alert("Login Google Berhasil!") 
       router.push("/app")
-    } catch (error: any) {
-      console.error("Google Auth Error:", error)
-      alert("Gagal login dengan Google. Coba lagi.")
+    } catch (error: unknown) {
+      const code = (error as FirebaseError)?.code || ""
+      const msg =
+        code === "auth/popup-closed-by-user"
+          ? "Popup login ditutup sebelum proses selesai."
+          : "Gagal login dengan Google. Coba lagi."
+      if (!code.startsWith("auth/")) {
+        console.error("Google Auth Error:", error)
+      }
+      alert(msg)
     } finally {
       setIsLoading(false)
     }
@@ -84,22 +97,37 @@ export default function AuthPage() {
     setIsLoading(true)
 
     try {
+      if (!auth) {
+        alert("Konfigurasi Firebase Auth belum valid. Cek file .env.local Anda.")
+        return
+      }
+
+      const normalizedEmail = email.trim().toLowerCase()
+      const normalizedPassword = password.trim()
+
       if (authMode === "login") {
-        await signInWithEmailAndPassword(auth, email, password)
+        await signInWithEmailAndPassword(auth, normalizedEmail, normalizedPassword)
         router.push("/app")
       } else {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password)
+        const userCredential = await createUserWithEmailAndPassword(auth, normalizedEmail, normalizedPassword)
         const user = userCredential.user
-        if (name) await updateProfile(user, { displayName: name })
-        await createUserProfile(user, name)
+        const normalizedName = name.trim()
+        if (normalizedName) await updateProfile(user, { displayName: normalizedName })
+        await createUserProfile(user, normalizedName)
         router.push("/app")
       }
-    } catch (error: any) {
-      console.error("Auth Error:", error)
+    } catch (error: unknown) {
+      const code = (error as FirebaseError)?.code || ""
       let msg = "Terjadi kesalahan sistem."
-      if (error.code === 'auth/invalid-credential') msg = "Email atau password salah."
-      if (error.code === 'auth/email-already-in-use') msg = "Email sudah terdaftar."
-      if (error.code === 'auth/weak-password') msg = "Password minimal 6 karakter."
+      if (code === "auth/invalid-credential") msg = "Email atau password salah."
+      if (code === "auth/email-already-in-use") msg = "Email sudah terdaftar."
+      if (code === "auth/weak-password") msg = "Password minimal 6 karakter."
+      if (code === "auth/invalid-email") msg = "Format email tidak valid."
+      if (code === "auth/too-many-requests") msg = "Terlalu banyak percobaan login. Coba lagi nanti."
+      if (code === "auth/network-request-failed") msg = "Koneksi internet bermasalah."
+      if (!code.startsWith("auth/")) {
+        console.error("Auth Error:", error)
+      }
       alert(msg)
     } finally {
       setIsLoading(false)

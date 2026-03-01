@@ -17,7 +17,8 @@ import {
   limit,
   Timestamp,
   arrayUnion,
-  arrayRemove
+  arrayRemove,
+  onSnapshot
 } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -114,6 +115,7 @@ export const createUserProfile = async (user: any, name: string) => {
     email: user.email,
     displayName: name,
     role: "member",
+    verificationStatus: "unverified",
     createdAt: serverTimestamp(),
   };
   await setDoc(userRef, userData, { merge: true });
@@ -128,10 +130,59 @@ export const getUserProfile = async (uid: string) => {
   return null;
 };
 
+export const subscribeUserProfile = (
+  uid: string,
+  onChange: (profile: any | null) => void
+) => {
+  if (!db || !uid) {
+    onChange(null);
+    return () => {};
+  }
+
+  const userRef = doc(db, "users", uid);
+  return onSnapshot(
+    userRef,
+    (snap) => {
+      if (!snap.exists()) {
+        onChange(null);
+        return;
+      }
+      onChange({ id: snap.id, ...snap.data() });
+    },
+    (error) => {
+      console.error("Error subscribing user profile:", error);
+      onChange(null);
+    }
+  );
+};
+
 export const updateUserProfileData = async (uid: string, data: any) => {
   if (!db) throw new Error("Database not initialized");
   const userRef = doc(db, "users", uid);
   await updateDoc(userRef, data);
+};
+
+export const submitKYCRequest = async (
+  uid: string,
+  payload: { nik: string; phoneNumber?: string; address?: string }
+) => {
+  if (!db) throw new Error("Database not initialized");
+  if (!uid) throw new Error("User ID tidak valid");
+
+  const nik = String(payload.nik || "").replace(/\D/g, "");
+  if (nik.length !== 16) {
+    throw new Error("NIK harus 16 digit angka");
+  }
+
+  const userRef = doc(db, "users", uid);
+  await updateDoc(userRef, {
+    nik,
+    phoneNumber: payload.phoneNumber || "",
+    address: payload.address || "",
+    verificationStatus: "pending",
+    kycSubmittedAt: serverTimestamp(),
+    adminNotes: "",
+  });
 };
 
 export const getUserById = async (userId: string) => {
@@ -901,6 +952,40 @@ export const getPendingKYCRequests = async () => {
   }
 };
 
+export const subscribeKYCRequests = (
+  onChange: (rows: any[]) => void
+) => {
+  if (!db) {
+    onChange([]);
+    return () => {};
+  }
+
+  const q = query(
+    collection(db, "users"),
+    where("verificationStatus", "in", ["pending", "verified"])
+  );
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const rows = snapshot.docs.map((docSnap) => {
+        const data: any = docSnap.data();
+        return {
+          id: docSnap.id,
+          ...data,
+          createdAt: data.createdAt?.toDate?.() ?? null,
+          verificationDate: data.verificationDate?.toDate?.() ?? null,
+        };
+      });
+      onChange(rows);
+    },
+    (error) => {
+      console.error("Error subscribing KYC requests:", error);
+      onChange([]);
+    }
+  );
+};
+
 export const addReplyToComment = async (
   postId: string,
   commentId: string,
@@ -993,6 +1078,50 @@ export const getKYCForumPosts = async () => {
     console.error("Error fetching KYC forum posts:", error);
     return [];
   }
+};
+
+export const subscribeKYCForumPosts = (
+  onChange: (rows: any[]) => void
+) => {
+  if (!db) {
+    onChange([]);
+    return () => {};
+  }
+
+  const q = query(
+    collection(db, "forumPosts"),
+    orderBy("createdAt", "desc")
+  );
+
+  return onSnapshot(
+    q,
+    async (snapshot) => {
+      try {
+        const posts = await Promise.all(
+          snapshot.docs.map(async (docSnap) => {
+            const data: any = docSnap.data();
+            const authorId = data.userId || data.authorId || "";
+            const authorData = authorId ? await getUserProfile(authorId) : null;
+            return {
+              id: docSnap.id,
+              ...data,
+              author: authorData?.displayName || "Unknown",
+              authorEmail: authorData?.email || "",
+              timestamp: data.createdAt?.toDate?.() ?? null,
+            };
+          })
+        );
+        onChange(posts);
+      } catch (error) {
+        console.error("Error mapping community posts snapshot:", error);
+        onChange([]);
+      }
+    },
+    (error) => {
+      console.error("Error subscribing community posts:", error);
+      onChange([]);
+    }
+  );
 };
 
 export const deleteForumPostByAdmin = async (

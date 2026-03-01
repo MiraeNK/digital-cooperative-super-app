@@ -40,7 +40,7 @@ export default function UserProfilePage() {
                 ? connection
                 : connection?.friendId || connection?.id || ""
             if (!friendId) return null
-            const friendProfile = await getUserById(friendId)
+            const friendProfile: any = await getUserById(friendId)
             return {
               id: friendId,
               friendId,

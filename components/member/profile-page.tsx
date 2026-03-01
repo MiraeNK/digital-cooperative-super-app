@@ -3,7 +3,7 @@
 import { User, Mail, Phone, MapPin, LogOut, Settings, ShieldCheck, AlertTriangle, Loader2, Save, Users, Search, ArrowRight } from "lucide-react"
 import { useState, useEffect } from "react"
 import { useAuth } from "@/components/auth-provider"
-import { updateUserProfileData, generateMemberId, auth, getAllMembers, searchUsers } from "@/lib/firebase"
+import { updateUserProfileData, generateMemberId, submitKYCRequest, auth, getAllMembers, searchUsers } from "@/lib/firebase"
 import { signOut } from "firebase/auth"
 import { useRouter } from "next/navigation"
 
@@ -93,6 +93,15 @@ export default function ProfilePage() {
   const handleSave = async () => {
     setIsLoading(true)
     try {
+      const role = userProfile?.role || "member"
+      const status = userProfile?.verificationStatus || "unverified"
+      const sanitizedNik = formData.nik.replace(/\D/g, "")
+
+      if (role === "member" && status !== "verified" && sanitizedNik.length > 0 && sanitizedNik.length !== 16) {
+        alert("NIK harus 16 digit angka.")
+        return
+      }
+
       // Data yang akan disimpan
       const updateData: any = {
         displayName: formData.displayName,
@@ -100,20 +109,18 @@ export default function ProfilePage() {
         address: formData.address,
       }
 
-      // Jika sedang mode KYC (isi NIK), update status jadi pending
-      if (formData.nik && formData.nik.length >= 16 && userProfile?.verificationStatus === 'unverified') {
-        updateData.nik = formData.nik;
-        updateData.verificationStatus = 'pending'; // Trigger verifikasi
+      await updateUserProfileData(user!.uid, updateData)
+
+      if (role === "member" && sanitizedNik.length === 16 && status !== "pending" && status !== "verified") {
+        await submitKYCRequest(user!.uid, {
+          nik: sanitizedNik,
+          phoneNumber: formData.phoneNumber,
+          address: formData.address,
+        })
       }
 
-      await updateUserProfileData(user!.uid, updateData)
       setIsEditing(false)
       alert("Profil berhasil disimpan!")
-      
-      // Refresh halaman jika mengajukan verifikasi agar status berubah
-      if (updateData.verificationStatus === 'pending') {
-        window.location.reload()
-      }
 
     } catch (error) {
       console.error(error)
@@ -346,7 +353,7 @@ export default function ProfilePage() {
                     type="text"
                     placeholder="Masukkan 16 Digit NIK KTP Asli"
                     value={formData.nik}
-                    onChange={(e) => setFormData({...formData, nik: e.target.value})}
+                    onChange={(e) => setFormData({...formData, nik: e.target.value.replace(/\D/g, "")})}
                     disabled={!isEditing}
                     maxLength={16}
                     className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary mb-2"

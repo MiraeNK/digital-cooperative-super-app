@@ -1,15 +1,16 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Loader2, MessageSquare, RefreshCw, ThumbsDown, ThumbsUp, Trash2 } from "lucide-react"
+import { Eye, Loader2, MessageSquare, RefreshCw, ThumbsDown, ThumbsUp, Trash2, X } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
-import { deleteForumPostByAdmin, getKYCForumPosts } from "@/lib/firebase"
+import { deleteForumPostByAdmin, subscribeKYCForumPosts } from "@/lib/firebase"
 
 export default function CommunityPostsManager() {
   const { user, userProfile } = useAuth()
   const [posts, setPosts] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [selectedPost, setSelectedPost] = useState<any | null>(null)
 
   const isAdmin = userProfile?.role === "admin"
 
@@ -21,20 +22,17 @@ export default function CommunityPostsManager() {
   }, [posts])
 
   const loadPosts = async () => {
+    // Realtime listener handles updates automatically.
     setIsLoading(true)
-    try {
-      const data = await getKYCForumPosts()
-      setPosts(data)
-    } catch (error) {
-      console.error("Error fetching community posts:", error)
-      setPosts([])
-    } finally {
-      setIsLoading(false)
-    }
+    setTimeout(() => setIsLoading(false), 250)
   }
 
   useEffect(() => {
-    loadPosts()
+    const unsubscribe = subscribeKYCForumPosts((rows) => {
+      setPosts(rows)
+      setIsLoading(false)
+    })
+    return () => unsubscribe()
   }, [])
 
   const handleDelete = async (postId: string) => {
@@ -50,6 +48,9 @@ export default function CommunityPostsManager() {
     try {
       await deleteForumPostByAdmin(postId, user.uid, userProfile?.role || "")
       setPosts((prev) => prev.filter((post) => post.id !== postId))
+      if (selectedPost?.id === postId) {
+        setSelectedPost(null)
+      }
     } catch (error) {
       console.error("Error deleting post:", error)
       alert("Gagal menghapus postingan.")
@@ -106,17 +107,26 @@ export default function CommunityPostsManager() {
                   <div className="min-w-0">
                     <h3 className="font-bold text-slate-900 line-clamp-1">{post.title || "Tanpa judul"}</h3>
                     <p className="text-sm text-slate-600 mt-1">
-                      Oleh {post.author || "Unknown"} • {formatDate(post.timestamp || post.createdAt)}
+                      Oleh {post.author || "Unknown"} - {formatDate(post.timestamp || post.createdAt)}
                     </p>
                   </div>
-                  <button
-                    onClick={() => handleDelete(post.id)}
-                    disabled={deletingId === post.id}
-                    className="inline-flex items-center justify-center gap-2 px-3 py-2 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition font-semibold text-sm disabled:opacity-60"
-                  >
-                    {deletingId === post.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                    Hapus
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setSelectedPost(post)}
+                      className="inline-flex items-center justify-center gap-2 px-3 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition font-semibold text-sm"
+                    >
+                      <Eye className="w-4 h-4" />
+                      Lihat
+                    </button>
+                    <button
+                      onClick={() => handleDelete(post.id)}
+                      disabled={deletingId === post.id}
+                      className="inline-flex items-center justify-center gap-2 px-3 py-2 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition font-semibold text-sm disabled:opacity-60"
+                    >
+                      {deletingId === post.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                      Hapus
+                    </button>
+                  </div>
                 </div>
 
                 <p className="text-sm text-slate-700 line-clamp-3 mb-4">{post.content || "-"}</p>
@@ -140,6 +150,55 @@ export default function CommunityPostsManager() {
           </div>
         )}
       </div>
+
+      {selectedPost && (
+        <div className="fixed inset-0 z-50 bg-black/40 p-4 flex items-center justify-center">
+          <div className="w-full max-w-2xl bg-white rounded-xl shadow-xl border border-slate-200">
+            <div className="flex items-start justify-between p-4 border-b border-slate-200">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">{selectedPost.title || "Tanpa judul"}</h3>
+                <p className="text-sm text-slate-600 mt-1">
+                  Oleh {selectedPost.author || "Unknown"} - {formatDate(selectedPost.timestamp || selectedPost.createdAt)}
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedPost(null)}
+                className="p-2 rounded-lg hover:bg-slate-100 text-slate-500"
+                aria-label="Tutup"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto">
+              {selectedPost.image && (
+                <img
+                  src={selectedPost.image}
+                  alt={selectedPost.title || "Community post image"}
+                  className="w-full h-56 object-cover rounded-lg border border-slate-200"
+                />
+              )}
+              <p className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">
+                {selectedPost.content || "-"}
+              </p>
+              <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600 pt-2 border-t border-slate-200">
+                <span className="inline-flex items-center gap-1">
+                  <ThumbsUp className="w-4 h-4" />
+                  {Array.isArray(selectedPost.upvotes) ? selectedPost.upvotes.length : Number(selectedPost.upvotes || 0)}
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <ThumbsDown className="w-4 h-4" />
+                  {Array.isArray(selectedPost.downvotes) ? selectedPost.downvotes.length : Number(selectedPost.downvotes || 0)}
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <MessageSquare className="w-4 h-4" />
+                  {Number(selectedPost.commentCount || 0)}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

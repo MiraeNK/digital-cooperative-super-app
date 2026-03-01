@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Heart, MessageCircle, MessageSquare, Badge, ThumbsUp, ThumbsDown, Trash2, ChevronLeft, ChevronRight, Plus, Loader2 } from "lucide-react"
+import { MessageCircle, MessageSquare, Badge, ThumbsUp, ThumbsDown, Trash2, ChevronLeft, ChevronRight, Plus, Loader2 } from "lucide-react"
 import FloatingMessageButton from "./floating-message-button"
 import PublicProfile from "./public-profile"
 import { useAuth } from "@/components/auth-provider"
-import { getUserProfile, createForumPost, getForumPosts, addCommentToPost, addReplyToComment, deleteForumPost, deleteComment, voteOnPost, getForumPostsWithAuthorData, deleteForumPostByAdmin, getCommentsForPost } from "@/lib/firebase"
+import { getUserProfile, createForumPost, addCommentToPost, addReplyToComment, voteOnPost, getForumPostsWithAuthorData, deleteForumPostByAdmin, getCommentsForPost } from "@/lib/firebase"
 
 interface Comment {
   id: string
@@ -51,7 +51,6 @@ interface CommunityPageProps {
 export default function CommunityPage({ onChatSelect, userRole = "member" }: CommunityPageProps) {
   const { user, userProfile } = useAuth()
   const router = useRouter()
-  const [userCache, setUserCache] = useState<{ [key: string]: any }>({})
   const [viewingProfileId, setViewingProfileId] = useState<string | null>(null)
   
   const [showComments, setShowComments] = useState<string | null>(null)
@@ -73,85 +72,7 @@ export default function CommunityPage({ onChatSelect, userRole = "member" }: Com
   const [savingReplyPostId, setSavingReplyPostId] = useState<string | null>(null)
   const [deletingPostId, setDeletingPostId] = useState<string | null>(null)
   const [userRole_, setUserRole_] = useState<"member" | "admin">("member")
-
-  const dummyPosts: ForumPost[] = [
-    {
-      id: "dummy-1",
-      type: "discussion",
-      topic: "Keuangan & Bisnis",
-      author: "Admin Koperasi",
-      authorId: "admin-dummy",
-      title: "Rapat Anggota Tahunan 2024: Kesempatan Tanya Jawab",
-      content:
-        "Rapat Anggota Tahunan akan diadakan tanggal 28 Februari 2024. Peserta akan membahas laporan tahunan, pembagian SHU, dan strategi bisnis 2024.",
-      timestamp: "2 jam lalu",
-      upvotes: 145,
-      downvotes: 5,
-      isAnnouncement: true,
-      image: "/placeholder.jpg",
-      comments: [
-        {
-          id: "c1",
-          author: "Budi Santoso",
-          authorId: "budi",
-          content: "Apakah peserta perlu membawa keluarga?",
-          timestamp: "1 jam lalu",
-          upvotes: 5,
-          downvotes: 0,
-          replies: [
-            {
-              id: "c1r1",
-              author: "Admin Koperasi",
-              authorId: "admin",
-              content: "Keluarga sangat dipersilakan untuk hadir",
-              timestamp: "30 menit lalu",
-              upvotes: 8,
-              downvotes: 0,
-            },
-          ],
-        },
-      ],
-    },
-    {
-      id: "dummy-2",
-      type: "selling",
-      topic: "Hasil Tani",
-      author: "Roni Hermawan",
-      authorId: "roni",
-      title: "Panen Cabai Rawit Segar - Harga Grosir Member",
-      content:
-        "Cabai rawit segar hasil panen hari ini. Kualitas premium, harga grosir untuk member koperasi. Stok terbatas, first come first served.",
-      image: "/fresh-red-chili-peppers.jpg",
-      price: 45000,
-      timestamp: "4 jam lalu",
-      upvotes: 89,
-      downvotes: 2,
-      comments: [
-        {
-          id: "c2",
-          author: "Dewi Kusuma",
-          authorId: "dewi",
-          content: "Harganya berapa per kg?",
-          timestamp: "3 jam lalu",
-          upvotes: 12,
-          downvotes: 0,
-          replies: [
-            {
-              id: "c2r1",
-              author: "Roni Hermawan",
-              authorId: "roni",
-              content: "Rp 45.000 per kg untuk member, bisa nego untuk pembelian besar",
-              timestamp: "2 jam lalu",
-              upvotes: 15,
-              downvotes: 0,
-            },
-          ],
-        },
-      ],
-    },
-  ]
-
-  const [forumPosts, setForumPosts] = useState<ForumPost[]>(dummyPosts)
+  const [forumPosts, setForumPosts] = useState<ForumPost[]>([])
 
   const formatPostTimestamp = (value: any) => {
     const date =
@@ -245,10 +166,10 @@ export default function CommunityPage({ onChatSelect, userRole = "member" }: Com
         }),
       )
 
-      setForumPosts([...normalizedPosts, ...dummyPosts])
+      setForumPosts(normalizedPosts)
     } catch (error) {
       console.error("Error fetching posts:", error)
-      setForumPosts(dummyPosts)
+      setForumPosts([])
     } finally {
       setIsLoading(false)
     }
@@ -259,24 +180,8 @@ export default function CommunityPage({ onChatSelect, userRole = "member" }: Com
     loadForumPosts()
   }, [])
 
-  // Cache user profiles untuk menampilkan author names
-  const getCachedUserProfile = async (userId: string) => {
-    if (userCache[userId]) {
-      return userCache[userId]
-    }
-    try {
-      const profile = await getUserProfile(userId)
-      setUserCache(prev => ({ ...prev, [userId]: profile }))
-      return profile
-    } catch (error) {
-      return null
-    }
-  }
-
   const topics = ["Keuangan & Bisnis", "Hasil Tani", "Kesehatan", "Teknologi"]
   const [selectedTopics, setSelectedTopics] = useState<string[]>([])
-  const [selectedFilter, setSelectedFilter] = useState<string>("Semua")
-  const filters = ["Semua", "Info Pusat", "Lapak Anggota", "Suara Anggota"]
 
   const toggleTopic = (topic: string) => {
     setSelectedTopics((prev) =>
@@ -337,12 +242,6 @@ export default function CommunityPage({ onChatSelect, userRole = "member" }: Com
   }, [userProfile])
 
   const deletePost = async (postId: string) => {
-    // Jangan delete dummy posts
-    if (postId.includes("dummy")) {
-      alert("Tidak bisa menghapus post default")
-      return
-    }
-    
     if (!user) {
       alert("Anda harus login untuk menghapus postingan")
       return
@@ -364,32 +263,6 @@ export default function CommunityPage({ onChatSelect, userRole = "member" }: Com
   const handleAddComment = async (postId: string) => {
     const commentText = (commentInputs[postId] || "").trim()
     if (!user || !commentText) return
-
-    if (postId.startsWith("dummy-")) {
-      setForumPosts((prev) =>
-        prev.map((post) =>
-          post.id === postId
-            ? {
-                ...post,
-                comments: [
-                  ...(post.comments || []),
-                  {
-                    id: `c${Date.now()}`,
-                    author: userProfile?.displayName || "User",
-                    authorId: user.uid,
-                    content: commentText,
-                    timestamp: "Sekarang",
-                    upvotes: 0,
-                    downvotes: 0,
-                  },
-                ],
-              }
-            : post,
-        ),
-      )
-      setCommentInputs((prev) => ({ ...prev, [postId]: "" }))
-      return
-    }
 
     setSavingCommentPostId(postId)
     try {
@@ -429,43 +302,6 @@ export default function CommunityPage({ onChatSelect, userRole = "member" }: Com
     const replyText = (commentInputs[postId] || "").trim()
     const replyTarget = replyTargets[replyKey]
     if (!user || !replyText) return
-
-    if (postId.startsWith("dummy-")) {
-      setForumPosts((prev) =>
-        prev.map((post) =>
-          post.id !== postId
-            ? post
-            : {
-                ...post,
-                comments: (post.comments || []).map((comment) =>
-                  comment.id !== commentId
-                    ? comment
-                    : {
-                        ...comment,
-                        replies: [
-                          ...(comment.replies || []),
-                          {
-                            id: `r-${Date.now()}`,
-                            author: userProfile?.displayName || "User",
-                            authorId: user.uid,
-                            content: replyText,
-                            replyToName: replyTarget?.name || "",
-                            replyToUserId: replyTarget?.userId || "",
-                            timestamp: "Sekarang",
-                            upvotes: 0,
-                            downvotes: 0,
-                          },
-                        ],
-                      },
-                ),
-              },
-        ),
-      )
-      setCommentInputs((prev) => ({ ...prev, [postId]: "" }))
-      setReplyTargets((prev) => ({ ...prev, [replyKey]: { name: "", userId: "" } }))
-      setActiveReplyKey(null)
-      return
-    }
 
     setSavingReplyPostId(postId)
     try {
@@ -614,10 +450,6 @@ export default function CommunityPage({ onChatSelect, userRole = "member" }: Com
       unreadCount: 1,
     },
   ]
-
-  const toggleLike = (postId: string) => {
-    // Placeholder for toggleLike functionality
-  }
 
   const carouselItems = [
     {
