@@ -8,6 +8,7 @@ import TransactionsTable from "./admin/transactions-table"
 import InventoryManagement from "./admin/inventory-management"
 import MemberDataGrid from "./admin/member-data-grid"
 import KYCVerification from "./admin/kyc-verification"
+import CommunityPostsManager from "./admin/community-posts-manager"
 
 export function AdminDashboard() {
   const [activePage, setActivePage] = useState("overview")
@@ -183,6 +184,8 @@ export function AdminDashboard() {
           )}
 
           {activePage === "kyc" && <KYCVerification />}
+
+          {activePage === "community" && <CommunityPostsManager />}
 
           {activePage === "content" && (
             <div className="space-y-6 sm:space-y-8">

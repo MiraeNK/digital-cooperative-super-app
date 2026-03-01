@@ -1,6 +1,7 @@
 "use client"
 
-import { Home, ShoppingBag, ArrowRightLeft, User, Users } from "lucide-react"
+import { Home, ShoppingBag, ArrowRightLeft, User, Users, BookOpen, Search } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 interface BottomNavigationProps {
   activeTab: string
@@ -9,12 +10,22 @@ interface BottomNavigationProps {
 }
 
 export default function BottomNavigation({ activeTab, onTabChange, sidebarExpanded = true }: BottomNavigationProps) {
+  const router = useRouter()
+  
   const tabs = [
     { id: "home", label: "Home", icon: Home },
     { id: "shop", label: "Toko", icon: ShoppingBag },
     { id: "transactions", label: "Transaksi", icon: ArrowRightLeft },
     { id: "community", label: "Komunitas", icon: Users },
     { id: "profile", label: "Profil", icon: User },
+  ]
+
+  const internalLinks = [
+    { id: "articles", label: "Artikel", icon: BookOpen },
+  ]
+
+  const externalLinks = [
+    { id: "members", label: "Anggota", icon: Users, href: "/app/members" },
   ]
 
   return (
@@ -41,6 +52,28 @@ export default function BottomNavigation({ activeTab, onTabChange, sidebarExpand
           </button>
         )
       })}
+      
+      {/* Internal Tab Links - Only on Desktop */}
+      <div className="hidden lg:flex lg:flex-col lg:gap-2 lg:mt-4 lg:pt-4 lg:border-t lg:border-slate-200 w-full">
+        {internalLinks.map((link) => {
+          const Icon = link.icon
+          const isActive = activeTab === link.id
+          return (
+            <button
+              key={link.id}
+              onClick={() => onTabChange(link.id)}
+              className={`flex lg:w-full flex-col lg:flex-row lg:items-center lg:gap-3 items-center justify-center lg:justify-start py-3 lg:px-4 lg:py-3 transition-colors rounded-lg ${
+                isActive
+                  ? "text-white bg-primary lg:bg-primary lg:text-white shadow-sm"
+                  : "text-slate-700 hover:bg-slate-100"
+              }`}
+            >
+              <Icon className={`w-6 h-6 flex-shrink-0 ${isActive ? "text-white" : "text-slate-600"}`} />
+              {sidebarExpanded && <span className="text-xs lg:text-sm font-semibold mt-1 lg:mt-0">{link.label}</span>}
+            </button>
+          )
+        })}
+      </div>
     </nav>
   )
 }

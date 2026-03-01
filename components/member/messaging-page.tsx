@@ -1,233 +1,564 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
-import { Send, ArrowLeft } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
+import { ArrowLeft, Check, Loader2, MessageSquare, Search, Send, User, X } from "lucide-react"
+import { useAuth } from "@/components/auth-provider"
+import {
+  acceptFriendRequest,
+  getConversation,
+  clearPendingMessagesFromSender,
+  markChatAsRead,
+  getPendingFriendRequests,
+  getUserProfile,
+  getUserChats,
+  markMessageAsRead,
+  rejectFriendRequest,
+  searchUsers,
+  sendMessageWithFriendCheck,
+} from "@/lib/firebase"
+import { useToast } from "@/hooks/use-toast"
 
-interface Message {
-  id: string
-  sender: string
-  isOwn: boolean
-  text: string
-  timestamp: string
-  read?: boolean
-}
-
-interface Chat {
-  id: string
-  name: string
-  avatar: string
-  lastMessage: string
-  unread: number
-  online: boolean
-}
-
-interface MessagingPageProps {
+type MessagingPageProps = {
   selectedChatId: string | null
   onBack: () => void
 }
 
-export default function MessagingPage({ selectedChatId, onBack }: MessagingPageProps) {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "1",
-      sender: "Admin Koperasi",
-      isOwn: false,
-      text: "Halo Tubagus, bagaimana kabar anda?",
-      timestamp: "09:15",
-      read: true,
-    },
-    {
-      id: "2",
-      sender: "Admin Koperasi",
-      isOwn: false,
-      text: "Ada pengumuman penting mengenai pembagian SHU bulan ini",
-      timestamp: "09:16",
-      read: true,
-    },
-    {
-      id: "3",
-      sender: "Tubagus",
-      isOwn: true,
-      text: "Baik Pak, terima kasih infonya. Kapan pembagiannya dilakukan?",
-      timestamp: "10:20",
-      read: true,
-    },
-    {
-      id: "4",
-      sender: "Admin Koperasi",
-      isOwn: false,
-      text: "Pembagian akan dilakukan tanggal 15 bulan depan setelah rapat anggota",
-      timestamp: "10:25",
-      read: true,
-    },
-  ])
+type ChatItem = {
+  id: string
+  displayName: string
+  email: string
+  lastMessage: string
+  unread: number
+}
 
+const toDate = (value: any): Date | null => {
+  if (!value) return null
+  if (value instanceof Date) return value
+  if (typeof value?.toDate === "function") return value.toDate()
+  if (typeof value === "string" || typeof value === "number") {
+    const parsed = new Date(value)
+    return Number.isNaN(parsed.getTime()) ? null : parsed
+  }
+  return null
+}
+
+const formatTime = (value: any) => {
+  const date = toDate(value)
+  if (!date) return "-"
+  return date.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
+}
+
+export default function MessagingPage({ selectedChatId, onBack }: MessagingPageProps) {
+  const router = useRouter()
+  const { user } = useAuth()
+  const { toast } = useToast()
+
+  const [activeTab, setActiveTab] = useState<"chats" | "requests">("chats")
+  const [selectedChatInternal, setSelectedChatInternal] = useState(selectedChatId ?? "")
+  const [chats, setChats] = useState<ChatItem[]>([])
+  const [pendingRequests, setPendingRequests] = useState<any[]>([])
+  const [messages, setMessages] = useState<any[]>([])
   const [inputText, setInputText] = useState("")
+  const [searchQuery, setSearchQuery] = useState("")
+  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [showSearch, setShowSearch] = useState(false)
+  const [selectedUserFallback, setSelectedUserFallback] = useState<ChatItem | null>(null)
+  const [isSending, setIsSending] = useState(false)
+  const [isLoadingLists, setIsLoadingLists] = useState(true)
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false)
+  const [isActingRequestId, setIsActingRequestId] = useState<string | null>(null)
+
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  const [chats] = useState<Chat[]>([
-    {
-      id: "admin",
-      name: "Admin Koperasi",
-      avatar: "A",
-      lastMessage: "Pembagian akan dilakukan tanggal 15...",
-      unread: 2,
-      online: true,
-    },
-    {
-      id: "pelanggan",
-      name: "Layanan Pelanggan",
-      avatar: "L",
-      lastMessage: "Transaksi pending sedang dicek...",
-      unread: 1,
-      online: false,
-    },
-    {
-      id: "roni",
-      name: "Roni Hermawan",
-      avatar: "R",
-      lastMessage: "Cabai rawit masih ada stok?",
-      unread: 0,
-      online: true,
-    },
-  ])
-
-  const [selectedChatInternal, setSelectedChatInternal] = useState<string>(selectedChatId || "admin")
-
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages])
+    setSelectedChatInternal(selectedChatId ?? "")
+  }, [selectedChatId])
 
-  const handleSendMessage = () => {
-    if (inputText.trim()) {
-      const newMessage: Message = {
-        id: String(messages.length + 1),
-        sender: "Tubagus",
-        isOwn: true,
-        text: inputText,
-        timestamp: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
-      }
-      setMessages([...messages, newMessage])
-      setInputText("")
+  const loadLists = async () => {
+    if (!user?.uid) return
+    setIsLoadingLists(true)
+    try {
+      const [chatData, requestData] = await Promise.all([
+        getUserChats(user.uid),
+        getPendingFriendRequests(user.uid),
+      ])
+
+      const mappedChats: ChatItem[] = (chatData || []).map((chat: any) => ({
+        id: chat.userId,
+        displayName: chat.displayName || "Anggota",
+        email: chat.email || "",
+        lastMessage: chat.lastMessage || "Mulai percakapan",
+        unread: chat.read ? 0 : 1,
+      }))
+
+      setChats(mappedChats)
+      setPendingRequests(requestData || [])
+    } catch (error) {
+      console.error("Error loading messaging lists:", error)
+      setChats([])
+      setPendingRequests([])
+    } finally {
+      setIsLoadingLists(false)
     }
   }
 
-  const getCurrentChat = () => {
-    return chats.find((c) => c.id === selectedChatInternal) || chats[0]
+  const loadMessages = async () => {
+    if (!user?.uid || !selectedChatInternal) {
+      setMessages([])
+      return
+    }
+
+    setIsLoadingMessages(true)
+    try {
+      const rows = await getConversation(user.uid, selectedChatInternal)
+      const incomingUnread = rows.filter((row: any) => row.receiverId === user.uid && !row.read)
+      await Promise.all(incomingUnread.map((row: any) => markMessageAsRead(row.id).catch(() => null)))
+      await Promise.all([
+        markChatAsRead(user.uid, selectedChatInternal).catch(() => null),
+        clearPendingMessagesFromSender(user.uid, selectedChatInternal).catch(() => null),
+      ])
+
+      setMessages(rows)
+      setChats((prev) =>
+        prev.map((chat) =>
+          chat.id === selectedChatInternal ? { ...chat, unread: 0 } : chat
+        )
+      )
+      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50)
+    } catch (error) {
+      console.error("Error loading messages:", error)
+      setMessages([])
+    } finally {
+      setIsLoadingMessages(false)
+    }
   }
 
-  const currentChat = getCurrentChat()
+  useEffect(() => {
+    loadLists()
+  }, [user?.uid])
+
+  useEffect(() => {
+    loadMessages()
+  }, [user?.uid, selectedChatInternal])
+
+  useEffect(() => {
+    if (!user?.uid) return
+    const intervalId = setInterval(() => {
+      loadLists()
+      if (selectedChatInternal) loadMessages()
+    }, 10000)
+    return () => clearInterval(intervalId)
+  }, [user?.uid, selectedChatInternal])
+
+  const currentChat = useMemo(
+    () => chats.find((chat) => chat.id === selectedChatInternal) || selectedUserFallback,
+    [chats, selectedChatInternal, selectedUserFallback]
+  )
+
+  useEffect(() => {
+    const hydrateFirstChatTarget = async () => {
+      if (!selectedChatInternal) {
+        setSelectedUserFallback(null)
+        return
+      }
+      const existing = chats.find((chat) => chat.id === selectedChatInternal)
+      if (existing) {
+        setSelectedUserFallback(null)
+        return
+      }
+      try {
+        const profile = await getUserProfile(selectedChatInternal)
+        if (profile) {
+          setSelectedUserFallback({
+            id: selectedChatInternal,
+            displayName: profile.displayName || "Anggota",
+            email: profile.email || "",
+            lastMessage: "Mulai percakapan",
+            unread: 0,
+          })
+        }
+      } catch (error) {
+        console.error("Error hydrating selected chat target:", error)
+      }
+    }
+    void hydrateFirstChatTarget()
+  }, [selectedChatInternal, chats])
+
+  const handleSendMessage = async () => {
+    const message = inputText.trim()
+    if (!message || !user?.uid || !selectedChatInternal || isSending) return
+
+    const tempId = `tmp-${Date.now()}`
+    const tempMessage = {
+      id: tempId,
+      senderId: user.uid,
+      receiverId: selectedChatInternal,
+      text: message,
+      timestamp: new Date(),
+      read: false,
+      __status: "sending",
+    }
+
+    setMessages((prev) => [...prev, tempMessage])
+    setIsSending(true)
+    setInputText("")
+    try {
+      await sendMessageWithFriendCheck(user.uid, selectedChatInternal, message)
+      await Promise.all([loadMessages(), loadLists()])
+    } catch (error) {
+      console.error("Error sending message:", error)
+      setMessages((prev) =>
+        prev.map((item: any) =>
+          item.id === tempId ? { ...item, __status: "failed" } : item
+        )
+      )
+      toast({
+        variant: "destructive",
+        title: "Gagal mengirim",
+        description: "Pesan belum terkirim. Periksa koneksi lalu coba lagi.",
+      })
+    } finally {
+      setIsSending(false)
+    }
+  }
+
+  const handleSearch = async (queryValue: string) => {
+    setSearchQuery(queryValue)
+    if (!queryValue.trim()) {
+      setSearchResults([])
+      return
+    }
+
+    try {
+      const results = await searchUsers(queryValue)
+      setSearchResults((results || []).filter((row: any) => row.id !== user?.uid))
+    } catch (error) {
+      console.error("Error searching users:", error)
+      setSearchResults([])
+    }
+  }
+
+  const handleRequestAction = async (requestUserId: string, action: "accept" | "reject") => {
+    if (!user?.uid) return
+    setIsActingRequestId(requestUserId)
+    try {
+      if (action === "accept") {
+        await acceptFriendRequest(user.uid, requestUserId)
+      } else {
+        await rejectFriendRequest(user.uid, requestUserId)
+      }
+      await loadLists()
+    } catch (error) {
+      console.error("Error updating request:", error)
+      toast({
+        variant: "destructive",
+        title: action === "accept" ? "Gagal menerima" : "Gagal menolak",
+        description: "Permintaan pertemanan tidak dapat diproses saat ini.",
+      })
+    } finally {
+      setIsActingRequestId(null)
+    }
+  }
+
+  const handleOpenProfile = () => {
+    if (!currentChat?.id) return
+    router.push(`/profile/${currentChat.id}`)
+  }
+
+  const handleBackFromDetail = () => {
+    if (selectedChatInternal) {
+      setSelectedChatInternal("")
+      return
+    }
+    onBack()
+  }
 
   return (
-    <div className="h-screen lg:h-[calc(100vh-80px)] bg-white flex flex-col lg:flex-row">
-      {/* Desktop Chat List - Hidden on mobile */}
-      <div className="hidden lg:flex w-80 border-r border-slate-200 flex-col bg-white">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-200">
-          <h2 className="text-xl font-bold text-slate-900">Pesan</h2>
-        </div>
-
-        {/* Chat List */}
-        <div className="flex-1 overflow-y-auto divide-y divide-slate-200">
-          {chats.map((chat) => (
+    <div className="flex h-full bg-white">
+      <div
+        className={`w-full sm:w-80 bg-white border-r border-slate-200 flex-col max-h-full overflow-hidden ${
+          selectedChatInternal ? "hidden sm:flex" : "flex"
+        }`}
+      >
+        <div className="p-4 border-b border-slate-200">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-2xl font-bold text-slate-900">Pesan</h2>
             <button
-              key={chat.id}
-              onClick={() => setSelectedChatInternal(chat.id)}
-              className={`w-full p-4 text-left hover:bg-slate-50 transition ${
-                selectedChatInternal === chat.id ? "bg-blue-50 border-l-4 border-primary" : ""
+              onClick={onBack}
+              className="sm:hidden inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 text-sm font-semibold"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Kembali
+            </button>
+          </div>
+
+          <div className="relative mb-4">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Cari pengguna..."
+              value={searchQuery}
+              onChange={(e) => handleSearch(e.target.value)}
+              onFocus={() => setShowSearch(true)}
+              onBlur={() => setTimeout(() => setShowSearch(false), 150)}
+              className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+            />
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              onClick={() => setActiveTab("chats")}
+              className={`flex-1 py-2 px-3 rounded-lg font-semibold text-sm transition ${
+                activeTab === "chats" ? "bg-primary text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
               }`}
             >
-              <div className="flex items-start gap-3">
-                <div className="relative flex-shrink-0">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-blue-700 text-white flex items-center justify-center font-bold text-sm">
-                    {chat.avatar}
-                  </div>
-                  {chat.online && (
-                    <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
-                  )}
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-slate-900 text-sm">{chat.name}</h3>
-                  <p className="text-xs text-slate-500 truncate">{chat.lastMessage}</p>
-                </div>
-
-                {chat.unread > 0 && (
-                  <span className="inline-flex items-center justify-center w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex-shrink-0">
-                    {chat.unread}
-                  </span>
-                )}
-              </div>
+              Teman ({chats.length})
             </button>
-          ))}
+            <button
+              onClick={() => setActiveTab("requests")}
+              className={`flex-1 py-2 px-3 rounded-lg font-semibold text-sm transition ${
+                activeTab === "requests" ? "bg-primary text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              Permintaan ({pendingRequests.length})
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+          {showSearch && searchResults.length > 0 && (
+            <div className="p-4 border-b border-slate-200">
+              <p className="text-xs text-slate-500 font-semibold mb-3">HASIL PENCARIAN</p>
+              {searchResults.map((result: any) => (
+                <button
+                  key={result.id}
+                  onClick={() => {
+                    setSelectedChatInternal(result.id)
+                    setSelectedUserFallback({
+                      id: result.id,
+                      displayName: result.displayName || "Anggota",
+                      email: result.email || "",
+                      lastMessage: "Mulai percakapan",
+                      unread: 0,
+                    })
+                    setActiveTab("chats")
+                    setShowSearch(false)
+                  }}
+                  className="w-full text-left p-3 rounded-lg hover:bg-blue-50 transition mb-2"
+                >
+                  <p className="font-semibold text-slate-900">{result.displayName || "Anggota"}</p>
+                  <p className="text-xs text-slate-500">{result.email || "-"}</p>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {activeTab === "chats" && (
+            <>
+              {isLoadingLists ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                </div>
+              ) : chats.length === 0 ? (
+                <div className="text-center py-12 px-4">
+                  <MessageSquare className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                  <p className="text-slate-600 font-semibold">Belum ada percakapan</p>
+                  <p className="text-slate-500 text-sm">Cari pengguna untuk mulai chat</p>
+                </div>
+              ) : (
+                <div className="p-2">
+                  {chats.map((chat) => (
+                    <button
+                      key={chat.id}
+                      onClick={() => {
+                        setSelectedUserFallback(null)
+                        setSelectedChatInternal(chat.id)
+                      }}
+                      className={`w-full text-left p-3 rounded-xl transition mb-2 ${
+                        selectedChatInternal === chat.id
+                          ? "bg-blue-100 border-2 border-primary"
+                          : "hover:bg-slate-50 border-2 border-transparent"
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-blue-600 text-white flex items-center justify-center font-bold flex-shrink-0">
+                          {(chat.displayName || "A").charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex justify-between items-baseline mb-1">
+                            <p className="font-semibold text-slate-900">{chat.displayName}</p>
+                            {chat.unread > 0 && (
+                              <span className="bg-primary text-white text-xs px-2 py-0.5 rounded-full">{chat.unread}</span>
+                            )}
+                          </div>
+                          <p className="text-sm text-slate-600 truncate">{chat.lastMessage}</p>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {activeTab === "requests" && (
+            <>
+              {isLoadingLists ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                </div>
+              ) : pendingRequests.length === 0 ? (
+                <div className="text-center py-12 px-4">
+                  <User className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                  <p className="text-slate-600 font-semibold">Tidak ada permintaan pertemanan</p>
+                </div>
+              ) : (
+                <div className="p-4 space-y-3">
+                  {pendingRequests.map((req: any) => (
+                    <div key={req.id} className="p-4 bg-white rounded-xl border-2 border-yellow-200">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-blue-600 text-white flex items-center justify-center font-bold text-sm">
+                          {(req.displayName || "U").charAt(0).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-semibold text-slate-900">{req.displayName || "Pengguna"}</p>
+                          <p className="text-xs text-slate-500 truncate">{req.email || "-"}</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleRequestAction(req.id, "accept")}
+                          disabled={isActingRequestId === req.id}
+                          className="flex-1 px-3 py-2 bg-green-100 text-green-700 rounded-lg text-xs font-semibold hover:bg-green-200 transition flex items-center justify-center gap-1 disabled:opacity-60"
+                        >
+                          {isActingRequestId === req.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                          Terima
+                        </button>
+                        <button
+                          onClick={() => handleRequestAction(req.id, "reject")}
+                          disabled={isActingRequestId === req.id}
+                          className="flex-1 px-3 py-2 bg-red-100 text-red-700 rounded-lg text-xs font-semibold hover:bg-red-200 transition flex items-center justify-center gap-1 disabled:opacity-60"
+                        >
+                          {isActingRequestId === req.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}
+                          Tolak
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
 
-      {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col">
-        {/* Chat Header */}
-        <div className="px-4 sm:px-6 py-4 bg-gradient-to-r from-primary to-blue-700 text-white flex items-center justify-between border-b border-blue-600 flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <button onClick={onBack} className="p-2 hover:bg-blue-600 rounded transition lg:hidden">
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <div className="w-10 h-10 rounded-full bg-white bg-opacity-30 flex items-center justify-center font-bold">
-              {currentChat.avatar}
-            </div>
-            <div>
-              <h3 className="font-semibold">{currentChat.name}</h3>
-              <p className="text-xs text-blue-100">{currentChat.online ? "Online" : "Offline"}</p>
-            </div>
-          </div>
-          <button className="p-2 hover:bg-blue-600 rounded transition">⋮</button>
-        </div>
-
-        {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-gradient-to-b from-slate-50 to-white">
-          {messages.map((message) => (
-            <div key={message.id} className={`flex ${message.isOwn ? "justify-end" : "justify-start"}`}>
-              <div
-                className={`max-w-xs sm:max-w-md px-4 py-2 rounded-lg ${
-                  message.isOwn
-                    ? "bg-primary text-white rounded-br-none"
-                    : "bg-slate-200 text-slate-900 rounded-bl-none"
-                }`}
-              >
-                <p className="text-sm sm:text-base break-words">{message.text}</p>
-                <p className={`text-xs mt-1 ${message.isOwn ? "text-blue-100" : "text-slate-600"}`}>
-                  {message.timestamp}
-                </p>
+      <div className={`flex-1 flex-col bg-white ${selectedChatInternal ? "flex" : "hidden sm:flex"}`}>
+        {currentChat ? (
+          <>
+            <div className="px-4 sm:px-6 py-4 bg-gradient-to-r from-primary to-blue-700 text-white flex items-center justify-between border-b border-blue-600 flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <button onClick={handleBackFromDetail} className="p-2 hover:bg-blue-600 rounded transition">
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+                <button onClick={handleOpenProfile} className="flex items-center gap-3 hover:opacity-90 transition">
+                  <div className="w-10 h-10 rounded-full bg-white/30 flex items-center justify-center font-bold">
+                    {(currentChat.displayName || "A").charAt(0).toUpperCase()}
+                  </div>
+                  <div className="text-left">
+                    <h3 className="font-semibold">{currentChat.displayName}</h3>
+                    <p className="text-xs text-blue-100">{currentChat.email}</p>
+                  </div>
+                </button>
               </div>
             </div>
-          ))}
-          <div ref={messagesEndRef} />
-        </div>
 
-        {/* Input Area */}
-        <div className="px-4 sm:px-6 py-4 border-t border-slate-200 bg-white flex-shrink-0">
-          <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="Ketik pesan..."
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              onKeyPress={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault()
-                  handleSendMessage()
-                }
-              }}
-              className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
-            />
-            <button
-              onClick={handleSendMessage}
-              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-2 font-semibold text-sm"
-            >
-              <Send className="w-4 h-4" />
-              <span className="hidden sm:inline">Kirim</span>
-            </button>
+            <div className="flex-1 overflow-y-auto bg-gradient-to-b from-slate-50 to-white">
+              <div className="p-4 sm:p-6 space-y-4 h-full flex flex-col">
+                {isLoadingMessages ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                  </div>
+                ) : messages.length === 0 ? (
+                  <div className="flex items-center justify-center h-full text-slate-500">
+                    <p className="text-sm">Mulai percakapan dengan mengirim pesan.</p>
+                  </div>
+                ) : (
+                  <>
+                    {messages.map((message: any) => {
+                      const isOwn = message.senderId === user?.uid
+                      const statusLabel = message.__status === "sending"
+                        ? "Mengirim..."
+                        : message.__status === "failed"
+                        ? "Gagal"
+                        : message.read
+                        ? "Dibaca"
+                        : "Terkirim"
+                      const statusColor = message.__status === "failed"
+                        ? (isOwn ? "text-red-200" : "text-red-500")
+                        : isOwn
+                        ? "text-blue-100"
+                        : "text-slate-500"
+                      return (
+                        <div key={message.id} className={`flex ${isOwn ? "justify-end" : "justify-start"}`}>
+                          <div
+                            className={`max-w-xs sm:max-w-md px-4 py-2 rounded-lg ${
+                              isOwn ? "bg-primary text-white rounded-br-none" : "bg-slate-200 text-slate-900 rounded-bl-none"
+                            }`}
+                          >
+                            <p className="text-sm sm:text-base break-words">{message.text}</p>
+                            <div className={`text-xs mt-1 flex items-center gap-2 ${isOwn ? "justify-end" : "justify-start"}`}>
+                              <span className={isOwn ? "text-blue-100" : "text-slate-600"}>
+                                {formatTime(message.timestamp)}
+                              </span>
+                              {isOwn && (
+                                <span className={statusColor}>{statusLabel}</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                    <div ref={messagesEndRef} />
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="px-4 sm:px-6 py-4 border-t border-slate-200 bg-white flex-shrink-0">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Ketik pesan..."
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault()
+                      handleSendMessage()
+                    }
+                  }}
+                  className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+                />
+                <button
+                  onClick={handleSendMessage}
+                  disabled={isSending || !inputText.trim()}
+                  className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-2 font-semibold text-sm disabled:opacity-50"
+                >
+                  {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  <span className="hidden sm:inline">Kirim</span>
+                </button>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="flex-1 hidden sm:flex items-center justify-center bg-white">
+            <div className="text-center">
+              <MessageSquare className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+              <p className="text-slate-600 font-semibold">Pilih percakapan untuk memulai</p>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   )

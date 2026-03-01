@@ -1,62 +1,69 @@
 "use client"
 
-import { useState } from "react"
-import { CheckCircle, XCircle, Clock, User, FileText, Camera } from "lucide-react"
+import { useState, useEffect } from "react"
+import { CheckCircle, XCircle, Clock, User, FileText, Camera, Loader2 } from "lucide-react"
+import { getPendingKYCRequests, updateKYCStatus } from "@/lib/firebase"
 
 export default function KYCVerification() {
-  const [pendingMembers, setPendingMembers] = useState([
-    {
-      id: 1,
-      name: "Budi Santoso",
-      joinDate: "2024-01-15",
-      email: "budi.santoso@email.com",
-      phone: "081234567890",
-      ktpNumber: "3274015001234567",
-      address: "Jl. Sudirman No. 45, Purwakarta",
-      status: "pending",
-      ktpPhoto: "📋",
-      selfiePhoto: "📸",
-      documents: ["KTP", "NPWP", "Surat Keterangan Usaha"],
-    },
-    {
-      id: 2,
-      name: "Siti Nurhaliza",
-      joinDate: "2024-01-16",
-      email: "siti.nur@email.com",
-      phone: "082345678901",
-      ktpNumber: "3274015002345678",
-      address: "Jl. Gatot Subroto No. 12, Purwakarta",
-      status: "pending",
-      ktpPhoto: "📋",
-      selfiePhoto: "📸",
-      documents: ["KTP", "NPWP"],
-    },
-  ])
+  const [pendingMembers, setPendingMembers] = useState<any[]>([])
+  const [verifiedMembers, setVerifiedMembers] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [actioningId, setActioningId] = useState<string | null>(null)
+  const [adminNotes, setAdminNotes] = useState<{ [key: string]: string }>({})
 
-  const [verifiedMembers] = useState([
-    {
-      id: 3,
-      name: "Tubagus Ahmad",
-      joinDate: "2024-01-10",
-      email: "tubagus.ahmad@email.com",
-      phone: "081234567890",
-      ktpNumber: "3274015003456789",
-      address: "Bumi Jaya Indah, Purwakarta Jawa Barat 41118",
-      status: "verified",
-      verifiedDate: "2024-01-12",
-      ktpPhoto: "📋",
-    },
-  ])
+  // Fetch pending KYC on mount
+  useEffect(() => {
+    fetchPendingKYC()
+  }, [])
 
-  const handleApprove = (memberId: number) => {
-    const member = pendingMembers.find((m) => m.id === memberId)
-    if (member) {
-      setPendingMembers(pendingMembers.filter((m) => m.id !== memberId))
+  const fetchPendingKYC = async () => {
+    setIsLoading(true)
+    try {
+      const pending = await getPendingKYCRequests()
+      // Separate pending and verified
+      const stillPending = pending.filter((m: any) => m.verificationStatus === "pending")
+      const verified = pending.filter((m: any) => m.verificationStatus === "verified")
+      
+      setPendingMembers(stillPending)
+      setVerifiedMembers(verified)
+    } catch (error) {
+      console.error("Error fetching KYC data:", error)
+    } finally {
+      setIsLoading(false)
     }
   }
 
-  const handleReject = (memberId: number) => {
-    setPendingMembers(pendingMembers.filter((m) => m.id !== memberId))
+  const handleApprove = async (memberId: string) => {
+    setActioningId(memberId)
+    try {
+      await updateKYCStatus(memberId, "verified", "")
+      // Remove from pending and add to verified
+      const member = pendingMembers.find((m) => m.id === memberId)
+      setPendingMembers(pendingMembers.filter((m) => m.id !== memberId))
+      if (member) {
+        setVerifiedMembers([...verifiedMembers, { ...member, verificationStatus: "verified" }])
+      }
+    } catch (error) {
+      console.error("Error approving KYC:", error)
+      alert("Gagal menyetujui KYC. Silakan coba lagi.")
+    } finally {
+      setActioningId(null)
+    }
+  }
+
+  const handleReject = async (memberId: string) => {
+    setActioningId(memberId)
+    const notes = adminNotes[memberId] || ""
+    try {
+      await updateKYCStatus(memberId, "rejected", notes)
+      setPendingMembers(pendingMembers.filter((m) => m.id !== memberId))
+    } catch (error) {
+      console.error("Error rejecting KYC:", error)
+      alert("Gagal menolak KYC. Silakan coba lagi.")
+    } finally {
+      setActioningId(null)
+      setAdminNotes({ ...adminNotes, [memberId]: "" })
+    }
   }
 
   return (
@@ -104,7 +111,11 @@ export default function KYCVerification() {
       <div className="bg-white border border-slate-200 rounded-xl p-6">
         <h2 className="text-xl font-bold text-slate-900 mb-6">Menunggu Verifikasi</h2>
 
-        {pendingMembers.length === 0 ? (
+        {isLoading ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        ) : pendingMembers.length === 0 ? (
           <div className="text-center py-12">
             <CheckCircle className="w-12 h-12 text-slate-300 mx-auto mb-3" />
             <p className="text-slate-600">Semua anggota sudah terverifikasi!</p>
@@ -117,9 +128,9 @@ export default function KYCVerification() {
                 <div className="mb-6">
                   <div className="flex items-start justify-between mb-4">
                     <div>
-                      <h3 className="text-lg font-bold text-slate-900 mb-1">{member.name}</h3>
+                      <h3 className="text-lg font-bold text-slate-900 mb-1">{member.displayName || "Anggota"}</h3>
                       <p className="text-sm text-slate-600">
-                        Mendaftar: {member.joinDate} • ID: {member.id}
+                        Mendaftar: {member.createdAt?.toLocaleDateString("id-ID")} • ID: {member.id}
                       </p>
                     </div>
                     <span className="px-3 py-1 bg-yellow-100 text-yellow-800 font-semibold rounded-full text-xs">
@@ -134,71 +145,50 @@ export default function KYCVerification() {
                     </div>
                     <div>
                       <p className="text-slate-600 font-semibold">No. HP</p>
-                      <p className="text-slate-900">{member.phone}</p>
+                      <p className="text-slate-900">{member.phoneNumber || "Belum diisi"}</p>
                     </div>
                     <div>
                       <p className="text-slate-600 font-semibold">No. KTP</p>
-                      <p className="text-slate-900">{member.ktpNumber}</p>
+                      <p className="text-slate-900">{member.ktp || "Belum diupload"}</p>
                     </div>
                     <div>
                       <p className="text-slate-600 font-semibold">Alamat</p>
-                      <p className="text-slate-900">{member.address}</p>
+                      <p className="text-slate-900">{member.address || "Belum diisi"}</p>
                     </div>
                   </div>
                 </div>
 
-                {/* Documents */}
+                {/* Admin Notes for Rejection */}
                 <div className="mb-6 pb-6 border-b border-slate-200">
-                  <p className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                    <FileText size={18} />
-                    Dokumen yang Diunggah
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {member.documents.map((doc, idx) => (
-                      <span key={idx} className="px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-xs">
-                        {doc}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Photo Preview */}
-                <div className="mb-6 pb-6 border-b border-slate-200">
-                  <p className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                    <Camera size={18} />
-                    Foto Dokumen
-                  </p>
-                  <div className="flex gap-4">
-                    <div className="text-center">
-                      <div className="w-24 h-24 bg-slate-100 rounded-lg flex items-center justify-center text-3xl mb-2">
-                        {member.ktpPhoto}
-                      </div>
-                      <p className="text-xs text-slate-600">Foto KTP</p>
-                    </div>
-                    <div className="text-center">
-                      <div className="w-24 h-24 bg-slate-100 rounded-lg flex items-center justify-center text-3xl mb-2">
-                        {member.selfiePhoto}
-                      </div>
-                      <p className="text-xs text-slate-600">Selfie</p>
-                    </div>
-                  </div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    Catatan Admin (untuk penolakan)
+                  </label>
+                  <textarea
+                    value={adminNotes[member.id] || ""}
+                    onChange={(e) => setAdminNotes({ ...adminNotes, [member.id]: e.target.value })}
+                    placeholder="Contoh: KTP tidak jelas / Data tidak lengkap"
+                    rows={2}
+                    className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                  />
                 </div>
 
                 {/* Actions */}
                 <div className="flex gap-3">
                   <button
                     onClick={() => handleApprove(member.id)}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-green-50 text-green-700 hover:bg-green-100 font-semibold rounded-lg transition active:scale-95"
+                    disabled={actioningId === member.id}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-green-50 text-green-700 hover:bg-green-100 font-semibold rounded-lg transition active:scale-95 disabled:opacity-50"
                   >
-                    <CheckCircle size={18} />
-                    Approve
+                    {actioningId === member.id ? <Loader2 className="animate-spin w-4 h-4" /> : <CheckCircle size={18} />}
+                    {actioningId === member.id ? "Processing..." : "Approve"}
                   </button>
                   <button
                     onClick={() => handleReject(member.id)}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-red-50 text-red-700 hover:bg-red-100 font-semibold rounded-lg transition active:scale-95"
+                    disabled={actioningId === member.id}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-red-50 text-red-700 hover:bg-red-100 font-semibold rounded-lg transition active:scale-95 disabled:opacity-50"
                   >
-                    <XCircle size={18} />
-                    Reject
+                    {actioningId === member.id ? <Loader2 className="animate-spin w-4 h-4" /> : <XCircle size={18} />}
+                    {actioningId === member.id ? "Processing..." : "Reject"}
                   </button>
                 </div>
               </div>
@@ -216,11 +206,16 @@ export default function KYCVerification() {
             <div key={member.id} className="border border-slate-200 rounded-lg p-4 hover:shadow-md transition">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
-                  <h3 className="font-semibold text-slate-900 mb-1">{member.name}</h3>
+                  <h3 className="font-semibold text-slate-900 mb-1">{member.displayName || "Anggota"}</h3>
                   <p className="text-sm text-slate-600">
-                    {member.email} • {member.phone}
+                    {member.email} • {member.phoneNumber || "Tidak ada nomor"}
                   </p>
-                  <p className="text-xs text-slate-500 mt-2">Terverifikasi: {member.verifiedDate}</p>
+                  <p className="text-xs text-slate-500 mt-2">
+                    Terverifikasi: {member.verificationDate?.toLocaleDateString("id-ID")}
+                  </p>
+                  <p className="text-xs text-slate-600 mt-1 font-semibold">
+                    Member ID: {member.memberId || "Generating..."}
+                  </p>
                 </div>
                 <span className="px-3 py-1 bg-green-100 text-green-800 font-semibold rounded-full text-xs flex items-center gap-1">
                   <CheckCircle size={14} />

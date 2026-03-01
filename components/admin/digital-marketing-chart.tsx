@@ -2,9 +2,9 @@
 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
 import { AlertCircle, X } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 
-const data = [
+const dummyData = [
   { month: "Jan", organic: 2400, direct: 1200, referral: 800, social: 1600 },
   { month: "Feb", organic: 2600, direct: 1100, referral: 900, social: 1700 },
   { month: "Mar", organic: 2800, direct: 1400, referral: 850, social: 1900 },
@@ -14,6 +14,13 @@ const data = [
 
 export default function DigitalMarketingChart() {
   const [showAlert, setShowAlert] = useState(true)
+  const [data, setData] = useState(dummyData)
+
+  useEffect(() => {
+    // In production: fetch real data from Firebase analytics
+    // For now, using dummy data
+    setData(dummyData)
+  }, [])
 
   return (
     <div className="space-y-6">
@@ -24,8 +31,7 @@ export default function DigitalMarketingChart() {
           <div className="flex-1">
             <h3 className="font-semibold text-slate-900">Insight: Traffic Organik Meningkat</h3>
             <p className="text-sm text-slate-700 mt-1">
-              Traffic dari Organic Search meningkat 8.9% bulan ini. Rekomendasi: Tingkatkan SEO untuk konten "Beras
-              Organik".
+              Traffic dari Organic Search meningkat 8.9% bulan ini. Rekomendasi: Tingkatkan SEO untuk konten berkualitas.
             </p>
           </div>
           <button
