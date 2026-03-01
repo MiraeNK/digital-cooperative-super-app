@@ -7,13 +7,17 @@ import { useAuth } from "@/components/auth-provider"
 import {
   acceptFriendRequest,
   getConversation,
+  clearPendingMessagesFromSender,
+  markChatAsRead,
   getPendingFriendRequests,
+  getUserProfile,
   getUserChats,
   markMessageAsRead,
   rejectFriendRequest,
   searchUsers,
   sendMessageWithFriendCheck,
 } from "@/lib/firebase"
+import { useToast } from "@/hooks/use-toast"
 
 type MessagingPageProps = {
   selectedChatId: string | null
@@ -48,6 +52,7 @@ const formatTime = (value: any) => {
 export default function MessagingPage({ selectedChatId, onBack }: MessagingPageProps) {
   const router = useRouter()
   const { user } = useAuth()
+  const { toast } = useToast()
 
   const [activeTab, setActiveTab] = useState<"chats" | "requests">("chats")
   const [selectedChatInternal, setSelectedChatInternal] = useState(selectedChatId ?? "")
@@ -58,6 +63,7 @@ export default function MessagingPage({ selectedChatId, onBack }: MessagingPageP
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<any[]>([])
   const [showSearch, setShowSearch] = useState(false)
+  const [selectedUserFallback, setSelectedUserFallback] = useState<ChatItem | null>(null)
   const [isSending, setIsSending] = useState(false)
   const [isLoadingLists, setIsLoadingLists] = useState(true)
   const [isLoadingMessages, setIsLoadingMessages] = useState(false)
@@ -108,8 +114,17 @@ export default function MessagingPage({ selectedChatId, onBack }: MessagingPageP
       const rows = await getConversation(user.uid, selectedChatInternal)
       const incomingUnread = rows.filter((row: any) => row.receiverId === user.uid && !row.read)
       await Promise.all(incomingUnread.map((row: any) => markMessageAsRead(row.id).catch(() => null)))
+      await Promise.all([
+        markChatAsRead(user.uid, selectedChatInternal).catch(() => null),
+        clearPendingMessagesFromSender(user.uid, selectedChatInternal).catch(() => null),
+      ])
 
       setMessages(rows)
+      setChats((prev) =>
+        prev.map((chat) =>
+          chat.id === selectedChatInternal ? { ...chat, unread: 0 } : chat
+        )
+      )
       setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50)
     } catch (error) {
       console.error("Error loading messages:", error)
@@ -137,22 +152,72 @@ export default function MessagingPage({ selectedChatId, onBack }: MessagingPageP
   }, [user?.uid, selectedChatInternal])
 
   const currentChat = useMemo(
-    () => chats.find((chat) => chat.id === selectedChatInternal) || null,
-    [chats, selectedChatInternal]
+    () => chats.find((chat) => chat.id === selectedChatInternal) || selectedUserFallback,
+    [chats, selectedChatInternal, selectedUserFallback]
   )
+
+  useEffect(() => {
+    const hydrateFirstChatTarget = async () => {
+      if (!selectedChatInternal) {
+        setSelectedUserFallback(null)
+        return
+      }
+      const existing = chats.find((chat) => chat.id === selectedChatInternal)
+      if (existing) {
+        setSelectedUserFallback(null)
+        return
+      }
+      try {
+        const profile = await getUserProfile(selectedChatInternal)
+        if (profile) {
+          setSelectedUserFallback({
+            id: selectedChatInternal,
+            displayName: profile.displayName || "Anggota",
+            email: profile.email || "",
+            lastMessage: "Mulai percakapan",
+            unread: 0,
+          })
+        }
+      } catch (error) {
+        console.error("Error hydrating selected chat target:", error)
+      }
+    }
+    void hydrateFirstChatTarget()
+  }, [selectedChatInternal, chats])
 
   const handleSendMessage = async () => {
     const message = inputText.trim()
     if (!message || !user?.uid || !selectedChatInternal || isSending) return
 
+    const tempId = `tmp-${Date.now()}`
+    const tempMessage = {
+      id: tempId,
+      senderId: user.uid,
+      receiverId: selectedChatInternal,
+      text: message,
+      timestamp: new Date(),
+      read: false,
+      __status: "sending",
+    }
+
+    setMessages((prev) => [...prev, tempMessage])
     setIsSending(true)
+    setInputText("")
     try {
       await sendMessageWithFriendCheck(user.uid, selectedChatInternal, message)
-      setInputText("")
       await Promise.all([loadMessages(), loadLists()])
     } catch (error) {
       console.error("Error sending message:", error)
-      alert("Gagal mengirim pesan.")
+      setMessages((prev) =>
+        prev.map((item: any) =>
+          item.id === tempId ? { ...item, __status: "failed" } : item
+        )
+      )
+      toast({
+        variant: "destructive",
+        title: "Gagal mengirim",
+        description: "Pesan belum terkirim. Periksa koneksi lalu coba lagi.",
+      })
     } finally {
       setIsSending(false)
     }
@@ -186,7 +251,11 @@ export default function MessagingPage({ selectedChatId, onBack }: MessagingPageP
       await loadLists()
     } catch (error) {
       console.error("Error updating request:", error)
-      alert(action === "accept" ? "Gagal menerima permintaan." : "Gagal menolak permintaan.")
+      toast({
+        variant: "destructive",
+        title: action === "accept" ? "Gagal menerima" : "Gagal menolak",
+        description: "Permintaan pertemanan tidak dapat diproses saat ini.",
+      })
     } finally {
       setIsActingRequestId(null)
     }
@@ -266,6 +335,13 @@ export default function MessagingPage({ selectedChatId, onBack }: MessagingPageP
                   key={result.id}
                   onClick={() => {
                     setSelectedChatInternal(result.id)
+                    setSelectedUserFallback({
+                      id: result.id,
+                      displayName: result.displayName || "Anggota",
+                      email: result.email || "",
+                      lastMessage: "Mulai percakapan",
+                      unread: 0,
+                    })
                     setActiveTab("chats")
                     setShowSearch(false)
                   }}
@@ -295,7 +371,10 @@ export default function MessagingPage({ selectedChatId, onBack }: MessagingPageP
                   {chats.map((chat) => (
                     <button
                       key={chat.id}
-                      onClick={() => setSelectedChatInternal(chat.id)}
+                      onClick={() => {
+                        setSelectedUserFallback(null)
+                        setSelectedChatInternal(chat.id)
+                      }}
                       className={`w-full text-left p-3 rounded-xl transition mb-2 ${
                         selectedChatInternal === chat.id
                           ? "bg-blue-100 border-2 border-primary"
@@ -408,6 +487,18 @@ export default function MessagingPage({ selectedChatId, onBack }: MessagingPageP
                   <>
                     {messages.map((message: any) => {
                       const isOwn = message.senderId === user?.uid
+                      const statusLabel = message.__status === "sending"
+                        ? "Mengirim..."
+                        : message.__status === "failed"
+                        ? "Gagal"
+                        : message.read
+                        ? "Dibaca"
+                        : "Terkirim"
+                      const statusColor = message.__status === "failed"
+                        ? (isOwn ? "text-red-200" : "text-red-500")
+                        : isOwn
+                        ? "text-blue-100"
+                        : "text-slate-500"
                       return (
                         <div key={message.id} className={`flex ${isOwn ? "justify-end" : "justify-start"}`}>
                           <div
@@ -416,9 +507,14 @@ export default function MessagingPage({ selectedChatId, onBack }: MessagingPageP
                             }`}
                           >
                             <p className="text-sm sm:text-base break-words">{message.text}</p>
-                            <p className={`text-xs mt-1 ${isOwn ? "text-blue-100" : "text-slate-600"}`}>
-                              {formatTime(message.timestamp)}
-                            </p>
+                            <div className={`text-xs mt-1 flex items-center gap-2 ${isOwn ? "justify-end" : "justify-start"}`}>
+                              <span className={isOwn ? "text-blue-100" : "text-slate-600"}>
+                                {formatTime(message.timestamp)}
+                              </span>
+                              {isOwn && (
+                                <span className={statusColor}>{statusLabel}</span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       )

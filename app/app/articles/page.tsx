@@ -28,13 +28,13 @@ const DEFAULT_CATEGORIES = [
 ]
 
 const DUMMY_ARTICLES = [
-  { id: "d1", title: "Cara Cerdas Mengembangkan Usaha Tani dengan Modal Koperasi", description: "Panduan lengkap memanfaatkan fasilitas pinjaman koperasi untuk meningkatkan hasil pertanian dan pendapatan keluarga petani.", tags: ["Pertanian"], author: "Tubagus Ahmad", views: 3240, likes: 210, coverImage: "", createdAt: { toDate: () => new Date("2024-11-15") } },
-  { id: "d2", title: "Strategi UMKM Go Digital: Dari Pasar Tradisional ke Marketplace", description: "Transformasi usaha kecil menengah ke platform digital terbukti meningkatkan omzet hingga 3x lipat dalam 6 bulan pertama.", tags: ["Keuangan & Bisnis"], author: "Dewi Lestari", views: 2180, likes: 145, coverImage: "", createdAt: { toDate: () => new Date("2024-11-10") } },
-  { id: "d3", title: "Kesehatan Jiwa Petani: Mengelola Tekanan di Musim Panen", description: "Bagaimana komunitas koperasi bisa saling mendukung kesehatan mental antar anggota di tengah tantangan agraris.", tags: ["Kesehatan"], author: "dr. Wahyu Subagyo", views: 1870, likes: 98, coverImage: "", createdAt: { toDate: () => new Date("2024-11-05") } },
-  { id: "d4", title: "IoT & Sensor Tanah: Teknologi Murah untuk Panen Maksimal", description: "Alat sensor tanah berbasis IoT kini bisa diakses UMKM dengan harga terjangkau dan hasil yang luar biasa.", tags: ["Teknologi"], author: "Roni Hermawan", views: 1540, likes: 88, coverImage: "", createdAt: { toDate: () => new Date("2024-10-28") } },
-  { id: "d5", title: "Hasil Ternak Sapi Potong: Menghitung Untung Bersih yang Realistis", description: "Analisis biaya produksi dan proyeksi keuntungan beternak sapi potong skala rumahan dengan dukungan koperasi.", tags: ["Peternakan"], author: "Hendra Wijaya", views: 2650, likes: 175, coverImage: "", createdAt: { toDate: () => new Date("2024-10-20") } },
-  { id: "d6", title: "Raih Sertifikasi Halal UMKM: Langkah Demi Langkah", description: "Panduan praktis mengurus sertifikasi halal produk UMKM agar bisa menembus pasar modern dan ekspor.", tags: ["Keuangan & Bisnis"], author: "Siti Rahayu", views: 1920, likes: 134, coverImage: "", createdAt: { toDate: () => new Date("2024-10-15") } },
-  { id: "d7", title: "Tips Menjaga Kualitas Beras Organik Selama Penyimpanan", description: "Teknik penyimpanan pasca panen yang benar untuk mempertahankan kualitas dan nilai jual beras organik.", tags: ["Pertanian"], author: "Agus Santoso", views: 1340, likes: 72, coverImage: "", createdAt: { toDate: () => new Date("2024-10-08") } },
+  { id: "d1", title: "Cara Cerdas Mengembangkan Usaha Tani dengan Modal Koperasi", description: "Panduan lengkap memanfaatkan fasilitas pinjaman koperasi untuk meningkatkan hasil pertanian dan pendapatan keluarga petani.", content: "## Modal Koperasi untuk Tani\nMulai dari kebutuhan paling prioritas.\n\n### Tahapan\n- Hitung kebutuhan modal\n- Pisahkan biaya rutin\n- Evaluasi per musim\n\n:::quote theme=amber font=serif\nKemajuan usaha datang dari keputusan kecil yang konsisten.\n:::\n\n:::block theme=blue font=sans title=\"Praktik\"\nGunakan catatan pengeluaran harian agar arus kas lebih terkontrol.\n:::", tags: ["Pertanian"], author: "Tubagus Ahmad", views: 3240, likes: 210, coverImage: "", createdAt: { toDate: () => new Date("2024-11-15") } },
+  { id: "d2", title: "Strategi UMKM Go Digital: Dari Pasar Tradisional ke Marketplace", description: "Transformasi usaha kecil menengah ke platform digital terbukti meningkatkan omzet hingga 3x lipat dalam 6 bulan pertama.", content: "## UMKM Go Digital\nOptimasi produk dan layanan pelanggan jadi kunci.\n\n### Langkah\n- Foto produk konsisten\n- Deskripsi jujur\n- Respon cepat\n\n:::quote theme=purple font=serif\nPelanggan membeli kepercayaan, bukan hanya produk.\n:::\n\n:::block theme=green font=sans title=\"Catatan\"\nSusun SOP chat admin agar kualitas layanan tetap stabil.\n:::", tags: ["Keuangan & Bisnis"], author: "Dewi Lestari", views: 2180, likes: 145, coverImage: "", createdAt: { toDate: () => new Date("2024-11-10") } },
+  { id: "d3", title: "Kesehatan Jiwa Petani: Mengelola Tekanan di Musim Panen", description: "Bagaimana komunitas koperasi bisa saling mendukung kesehatan mental antar anggota di tengah tantangan agraris.", content: "## Kesehatan Mental Petani\nMusim panen menuntut fisik dan mental sekaligus.\n\n### Rekomendasi\n- Jadwal istirahat\n- Pembagian beban kerja\n- Forum evaluasi mingguan\n\n:::quote theme=blue font=serif\nTim sehat secara mental cenderung lebih tahan menghadapi tekanan pasar.\n:::\n\n:::block theme=slate font=sans title=\"Pengingat\"\nMasukkan aspek kesejahteraan mental di agenda rapat rutin koperasi.\n:::", tags: ["Kesehatan"], author: "dr. Wahyu Subagyo", views: 1870, likes: 98, coverImage: "", createdAt: { toDate: () => new Date("2024-11-05") } },
+  { id: "d4", title: "IoT & Sensor Tanah: Teknologi Murah untuk Panen Maksimal", description: "Alat sensor tanah berbasis IoT kini bisa diakses UMKM dengan harga terjangkau dan hasil yang luar biasa.", content: "## Sensor Tanah IoT\nData real-time membantu keputusan lebih akurat.\n\n### Dampak\n- Efisiensi air\n- Pemupukan tepat\n- Risiko gagal panen turun\n\n:::quote theme=green font=serif\nData kecil yang konsisten bisa memberi dampak besar.\n:::\n\n:::block theme=amber font=mono title=\"Implementasi\"\nMulai dari lahan kecil sebelum diterapkan ke seluruh area produksi.\n:::", tags: ["Teknologi"], author: "Roni Hermawan", views: 1540, likes: 88, coverImage: "", createdAt: { toDate: () => new Date("2024-10-28") } },
+  { id: "d5", title: "Hasil Ternak Sapi Potong: Menghitung Untung Bersih yang Realistis", description: "Analisis biaya produksi dan proyeksi keuntungan beternak sapi potong skala rumahan dengan dukungan koperasi.", content: "## Ternak Sapi Potong\nMargin usaha ditentukan kontrol biaya pakan.\n\n### Fokus\n- Konversi pakan\n- Jadwal kesehatan ternak\n- Kondisi kandang\n\n:::quote theme=blue font=serif\nKontrol biaya harian lebih penting daripada prediksi harga semata.\n:::\n\n:::block theme=slate font=sans title=\"Checklist\"\nGunakan catatan berat mingguan untuk memantau performa ternak.\n:::", tags: ["Peternakan"], author: "Hendra Wijaya", views: 2650, likes: 175, coverImage: "", createdAt: { toDate: () => new Date("2024-10-20") } },
+  { id: "d6", title: "Raih Sertifikasi Halal UMKM: Langkah Demi Langkah", description: "Panduan praktis mengurus sertifikasi halal produk UMKM agar bisa menembus pasar modern dan ekspor.", content: "## Sertifikasi Halal UMKM\nDokumen yang rapi mempercepat proses audit.\n\n### Persiapan\n- Data bahan baku\n- SOP produksi\n- Bukti kebersihan\n\n:::quote theme=purple font=serif\nDokumentasi yang rapi mengurangi revisi dan biaya tambahan.\n:::\n\n:::block theme=green font=sans title=\"Tips\"\nBuat template dokumen agar produk baru lebih cepat tersertifikasi.\n:::", tags: ["Keuangan & Bisnis"], author: "Siti Rahayu", views: 1920, likes: 134, coverImage: "", createdAt: { toDate: () => new Date("2024-10-15") } },
+  { id: "d7", title: "Tips Menjaga Kualitas Beras Organik Selama Penyimpanan", description: "Teknik penyimpanan pasca panen yang benar untuk mempertahankan kualitas dan nilai jual beras organik.", content: "## Penyimpanan Beras Organik\nKualitas pasca panen sangat menentukan harga jual.\n\n### Standar\n- Ventilasi baik\n- Rotasi FIFO\n- Pemeriksaan batch\n\n:::quote theme=amber font=serif\nMutu produk yang konsisten membangun loyalitas pasar.\n:::\n\n:::block theme=blue font=sans title=\"Kontrol\"\nGunakan label batch agar traceability produk tetap jelas.\n:::", tags: ["Pertanian"], author: "Agus Santoso", views: 1340, likes: 72, coverImage: "", createdAt: { toDate: () => new Date("2024-10-08") } },
 ]
 
 function getGradient(id: string) {
@@ -58,6 +58,36 @@ function formatDate(createdAt: any) {
 function readTime(text?: string) {
   if (!text) return "5 min baca"
   return `${Math.max(1, Math.round(text.split(" ").length / 200))} min baca`
+}
+
+function toPreviewText(raw?: string) {
+  if (!raw) return ""
+  return raw
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/<[!/a-zA-Z][^\s>]*/g, " ")
+    .replace(/!\[(.*?)\]\((.*?)\)/g, "$1")
+    .replace(/\[(.*?)\]\((.*?)\)/g, "$1")
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^\s*>\s?/gm, "")
+    .replace(/^\s*[-*+]\s+/gm, "")
+    .replace(/^\s*\d+\.\s+/gm, "")
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/\*(.*?)\*/g, "$1")
+    .replace(/~~(.*?)~~/g, "$1")
+    .replace(/<u>(.*?)<\/u>/gi, "$1")
+    .replace(/:::[\s\S]*?:::/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
 }
 
 export default function ArticleDiscoveryPage() {
@@ -267,7 +297,7 @@ export default function ArticleDiscoveryPage() {
                         {featured.tags?.[0] && <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase", color: "#1e3a5f", background: "#e8f0fe", borderRadius: 20, padding: "3px 10px" }}>{featured.tags[0]}</span>}
                       </div>
                       <div className="fraunces" style={{ fontSize: 24, fontWeight: 700, lineHeight: 1.25, color: "#111" }}>{featured.title}</div>
-                      <div style={{ fontSize: 14, color: "#888", lineHeight: 1.6, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" as any, overflow: "hidden" }}>{featured.description}</div>
+                      <div style={{ fontSize: 14, color: "#888", lineHeight: 1.6, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" as any, overflow: "hidden" }}>{toPreviewText(featured.description || featured.excerpt || featured.content)}</div>
                       <div style={{ display: "flex", gap: 12 }}>
                         <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#aaa" }}><Eye size={12} /> {featured.views ?? 0}</span>
                         <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#aaa" }}><Heart size={12} /> {featured.likes ?? 0}</span>
@@ -276,7 +306,7 @@ export default function ArticleDiscoveryPage() {
                         <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#e8e5de", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#1e3a5f", flexShrink: 0 }}>{initials(featured.author)}</div>
                         <div style={{ flex: 1 }}>
                           <div style={{ fontWeight: 600, color: "#111", fontSize: 13 }}>{featured.author}</div>
-                          <div style={{ fontSize: 12, color: "#aaa" }}>{formatDate(featured.createdAt) || readTime(featured.description)}</div>
+                          <div style={{ fontSize: 12, color: "#aaa" }}>{formatDate(featured.createdAt) || readTime(toPreviewText(featured.description || featured.excerpt || featured.content))}</div>
                         </div>
                         <div className="arrow-btn" style={{ width: 30, height: 30, borderRadius: "50%", border: "1.5px solid #e8e5de", display: "flex", alignItems: "center", justifyContent: "center", color: "#111" }}>
                           <ArrowUpRight size={14} />
@@ -301,12 +331,12 @@ export default function ArticleDiscoveryPage() {
                             <span style={{ display: "inline-block", fontSize: 11, fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase", color: "#1e3a5f", background: "#e8f0fe", borderRadius: 20, padding: "3px 10px", marginBottom: 10 }}>{article.tags[0]}</span>
                           )}
                           <div className="fraunces" style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.3, color: "#111", marginBottom: 8, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as any, overflow: "hidden" }}>{article.title}</div>
-                          <div style={{ fontSize: 13, color: "#888", lineHeight: 1.6, marginBottom: 14, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as any, overflow: "hidden" }}>{article.description}</div>
+                          <div style={{ fontSize: 13, color: "#888", lineHeight: 1.6, marginBottom: 14, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as any, overflow: "hidden" }}>{toPreviewText(article.description || article.excerpt || article.content)}</div>
                           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                             <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#e8e5de", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#1e3a5f", flexShrink: 0 }}>{initials(article.author)}</div>
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ fontWeight: 600, color: "#111", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{article.author}</div>
-                              <div style={{ fontSize: 11, color: "#aaa" }}>{formatDate(article.createdAt) || readTime(article.description)}</div>
+                              <div style={{ fontSize: 11, color: "#aaa" }}>{formatDate(article.createdAt) || readTime(toPreviewText(article.description || article.excerpt || article.content))}</div>
                             </div>
                             <div className="arrow-btn" style={{ width: 28, height: 28, borderRadius: "50%", border: "1.5px solid #e8e5de", display: "flex", alignItems: "center", justifyContent: "center", color: "#111", flexShrink: 0 }}>
                               <ArrowUpRight size={13} />

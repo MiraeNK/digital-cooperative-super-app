@@ -8,6 +8,7 @@ interface Article {
   id: string
   title: string
   description: string
+  content?: string
   tags?: string[]
   author: string
   authorId: string
@@ -21,9 +22,47 @@ interface Article {
 
 interface ArticlesSectionProps {
   onArticleClick?: (article: Article) => void
+  onViewAll?: () => void
 }
 
-export default function ArticlesSection({ onArticleClick }: ArticlesSectionProps) {
+const DUMMY_BODY = `## Ringkasan\nArtikel ini membahas langkah praktis yang bisa langsung diterapkan di lapangan.\n\n### Poin Utama\n- Mulai dari skala kecil\n- Catat biaya dan hasil\n- Evaluasi tiap minggu\n\n:::quote theme=blue font=serif\nKunci keberhasilan bukan hanya modal, tapi konsistensi eksekusi.\n:::\n\n:::block theme=green font=sans title="Tips Praktis"\nGunakan checklist harian agar progres lebih terukur dan tidak ada langkah yang terlewat.\n:::`
+
+function toPreviewText(raw?: string) {
+  if (!raw) return ""
+  return raw
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/<[!/a-zA-Z][^\s>]*/g, " ")
+    .replace(/!\[(.*?)\]\((.*?)\)/g, "$1")
+    .replace(/\[(.*?)\]\((.*?)\)/g, "$1")
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^\s*>\s?/gm, "")
+    .replace(/^\s*[-*+]\s+/gm, "")
+    .replace(/^\s*\d+\.\s+/gm, "")
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/\*(.*?)\*/g, "$1")
+    .replace(/~~(.*?)~~/g, "$1")
+    .replace(/<u>(.*?)<\/u>/gi, "$1")
+    .replace(/:::[\s\S]*?:::/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+function getArticlePreview(article: Article) {
+  const source = article.description || article.excerpt || article.content || ""
+  return toPreviewText(source)
+}
+
+export default function ArticlesSection({ onArticleClick, onViewAll }: ArticlesSectionProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [isLoading, setIsLoading] = useState(true)
 
@@ -32,6 +71,7 @@ export default function ArticlesSection({ onArticleClick }: ArticlesSectionProps
       id: "dummy-1",
       title: "Tips Berkebun Organik di Rumah",
       description: "Panduan lengkap untuk pemula yang ingin memulai berkebun organik dengan lahan terbatas.",
+      content: DUMMY_BODY,
       tags: ["Pertanian"],
       author: "Tubagus Ahmad",
       authorId: "tubagus-dummy",
@@ -45,6 +85,7 @@ export default function ArticlesSection({ onArticleClick }: ArticlesSectionProps
       id: "dummy-2",
       title: "Panduan Bisnis E-Commerce untuk UMKM",
       description: "Strategi memulai bisnis online dari nol dengan modal minimal dan untung maksimal.",
+      content: DUMMY_BODY,
       tags: ["Keuangan"],
       author: "Dewi Lestari",
       authorId: "dewi-dummy",
@@ -58,6 +99,7 @@ export default function ArticlesSection({ onArticleClick }: ArticlesSectionProps
       id: "dummy-3",
       title: "Kesehatan Mental di Era Digital",
       description: "Cara menjaga kesehatan mental saat bekerja online dan menghindari burnout.",
+      content: DUMMY_BODY,
       tags: ["Kesehatan"],
       author: "Wahyu Subagyo",
       authorId: "wahyu-dummy",
@@ -71,6 +113,7 @@ export default function ArticlesSection({ onArticleClick }: ArticlesSectionProps
       id: "dummy-4",
       title: "Teknologi AI untuk Pertanian Masa Depan",
       description: "Bagaimana teknologi AI mengubah industri pertanian dan meningkatkan hasil panen.",
+      content: DUMMY_BODY,
       tags: ["Teknologi"],
       author: "Roni Hermawan",
       authorId: "roni-dummy",
@@ -126,7 +169,15 @@ export default function ArticlesSection({ onArticleClick }: ArticlesSectionProps
           <h3 className="text-xl font-bold text-slate-900">Wawasan & Berita</h3>
           <p className="text-sm text-slate-500 mt-1">Artikel terbaru dari komunitas koperasi</p>
         </div>
-        <div className="flex gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
+          {onViewAll && (
+            <button
+              onClick={onViewAll}
+              className="text-sm font-semibold text-primary hover:underline px-2"
+            >
+              Lihat Semua →
+            </button>
+          )}
           <button
             onClick={() => scroll("left")}
             className="w-9 h-9 flex items-center justify-center bg-white border border-slate-200 rounded-full hover:bg-slate-50 hover:text-primary transition-colors disabled:opacity-50 shadow-sm"
@@ -202,7 +253,7 @@ export default function ArticlesSection({ onArticleClick }: ArticlesSectionProps
 
                 {/* Description */}
                 <p className="text-xs sm:text-sm text-slate-500 line-clamp-2 mb-4">
-                  {article.description || article.excerpt}
+                  {getArticlePreview(article)}
                 </p>
 
                 {/* Spacer to push footer to bottom */}

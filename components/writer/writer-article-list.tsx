@@ -4,66 +4,82 @@ import { useState, useEffect } from "react"
 import { Edit2, Trash2, Eye } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 import { getArticlesByAuthor, deleteArticle } from "@/lib/firebase"
+import ArticleReader from "@/components/member/article-reader"
+import { useToast } from "@/hooks/use-toast"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
-export default function WriterArticleList() {
+const toDate = (value: any): Date | null => {
+  if (!value) return null
+  if (value instanceof Date) return value
+  if (typeof value?.toDate === "function") return value.toDate()
+  if (typeof value === "string" || typeof value === "number") {
+    const parsed = new Date(value)
+    return Number.isNaN(parsed.getTime()) ? null : parsed
+  }
+  return null
+}
+
+type Props = {
+  refreshToken?: number
+  onArticleChanged?: () => void
+  onEditArticle?: (article: any) => void
+}
+
+export default function WriterArticleList({ refreshToken = 0, onArticleChanged, onEditArticle }: Props) {
   const { user } = useAuth()
+  const { toast } = useToast()
   const [isLoading, setIsLoading] = useState(true)
-  const [articles, setArticles] = useState<any[]>([
-    {
-      id: "dummy-1",
-      title: "Tips Berkebun Organik di Rumah",
-      category: "Hasil Tani",
-      status: "published",
-      views: 2450,
-      date: "2 hari lalu",
-      excerpt: "Panduan lengkap berkebun organik untuk pemula...",
-    },
-    {
-      id: "dummy-2",
-      title: "Panduan Bisnis E-Commerce untuk UMKM",
-      category: "Keuangan & Bisnis",
-      status: "draft",
-      views: 0,
-      date: "3 hari lalu",
-      excerpt: "Strategi memulai bisnis online dari nol...",
-    },
-  ])
+  const [articles, setArticles] = useState<any[]>([])
+  const [selectedArticle, setSelectedArticle] = useState<any | null>(null)
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchArticles = async () => {
-      if (!user) return
+      if (!user) {
+        setArticles([])
+        return
+      }
       
       setIsLoading(true)
       try {
         const authorArticles = await getArticlesByAuthor(user.uid)
-        // Combine with dummy articles
-        const combinedArticles = [...(authorArticles as any[]), ...articles.filter(a => a.id.includes("dummy"))]
-        setArticles(combinedArticles)
+        setArticles(authorArticles as any[])
       } catch (error) {
         console.error("Error fetching articles:", error)
+        setArticles([])
       } finally {
         setIsLoading(false)
       }
     }
 
     fetchArticles()
-  }, [user])
+  }, [user, refreshToken])
 
   const handleDelete = async (articleId: string) => {
-    if (!confirm("Apakah Anda yakin ingin menghapus artikel ini?")) return
-    
-    // Don't delete dummy articles
-    if (articleId.includes("dummy")) {
-      alert("Tidak bisa menghapus artikel default")
-      return
-    }
-
     try {
       await deleteArticle(articleId)
-      setArticles(articles.filter(a => a.id !== articleId))
+      setArticles((prev) => prev.filter((a) => a.id !== articleId))
+      onArticleChanged?.()
+      toast({
+        title: "Artikel dihapus",
+        description: "Artikel berhasil dihapus dari daftar Anda.",
+      })
     } catch (error) {
       console.error("Error deleting article:", error)
-      alert("Gagal menghapus artikel")
+      toast({
+        variant: "destructive",
+        title: "Gagal menghapus",
+        description: "Terjadi kesalahan saat menghapus artikel.",
+      })
     }
   }
 
@@ -89,6 +105,12 @@ export default function WriterArticleList() {
 
       {isLoading && <p className="text-slate-500">Memuat artikel...</p>}
 
+      {!isLoading && articles.length === 0 && (
+        <div className="bg-white rounded-lg border border-slate-200 p-8 text-center text-slate-600">
+          Belum ada artikel. Silakan buat artikel pertama Anda.
+        </div>
+      )}
+
       <div className="space-y-3">
         {articles.map((article) => (
           <div key={article.id} className="bg-white rounded-lg border border-slate-200 p-4 hover:shadow-md transition">
@@ -106,9 +128,7 @@ export default function WriterArticleList() {
               <div className="space-x-3 flex">
                 <span>{article.category}</span>
                 <span>
-                  {article.createdAt 
-                    ? new Date(article.createdAt).toLocaleDateString("id-ID")
-                    : article.date}
+                  {toDate(article.createdAt)?.toLocaleDateString("id-ID") || "-"}
                 </span>
               </div>
               {article.status === "published" && (
@@ -120,15 +140,22 @@ export default function WriterArticleList() {
             </div>
 
             <div className="flex items-center justify-end gap-2">
-              <button 
+              <button
+                onClick={() => setSelectedArticle(article)}
+                className="p-2 text-primary hover:bg-blue-50 rounded-lg transition"
+                title="Preview"
+              >
+                <Eye className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => onEditArticle?.(article)}
                 className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition" 
                 title="Edit"
-                disabled={true}
               >
                 <Edit2 className="w-4 h-4" />
               </button>
               <button 
-                onClick={() => handleDelete(article.id)}
+                onClick={() => setDeleteTargetId(article.id)}
                 className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition" 
                 title="Delete"
               >
@@ -138,6 +165,51 @@ export default function WriterArticleList() {
           </div>
         ))}
       </div>
+
+      {selectedArticle && (
+        <ArticleReader
+          article={{
+            id: selectedArticle.id,
+            title: selectedArticle.title || "Tanpa Judul",
+            category: selectedArticle.category,
+            author: selectedArticle.author,
+            authorId: selectedArticle.authorId,
+            views: selectedArticle.views || 0,
+            likes: selectedArticle.likes || 0,
+            cover: selectedArticle.cover || selectedArticle.coverImage || "",
+            excerpt: selectedArticle.excerpt || "",
+            description: selectedArticle.description || selectedArticle.excerpt || "",
+            content: selectedArticle.content || "",
+            tags: selectedArticle.tags || (selectedArticle.category ? [selectedArticle.category] : []),
+            createdAt: selectedArticle.createdAt,
+          }}
+          onClose={() => setSelectedArticle(null)}
+        />
+      )}
+
+      <AlertDialog open={Boolean(deleteTargetId)} onOpenChange={(open) => !open && setDeleteTargetId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus artikel ini?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tindakan ini tidak dapat dibatalkan. Artikel akan dihapus permanen.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault()
+                const articleId = deleteTargetId
+                setDeleteTargetId(null)
+                if (articleId) void handleDelete(articleId)
+              }}
+            >
+              Ya, Hapus
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

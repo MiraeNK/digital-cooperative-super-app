@@ -504,9 +504,26 @@ export default function ProfilePage() {
 
               {/* Action Button */}
               {user?.uid !== member.id && (
-                <button className="w-full mt-4 py-2 bg-primary text-white font-semibold rounded-lg hover:bg-blue-700 transition text-sm">
-                  Lihat Profil
-                </button>
+                <div className="w-full mt-4 grid grid-cols-2 gap-2">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      router.push(`/app?chat=${member.id}`)
+                    }}
+                    className="py-2 bg-primary text-white font-semibold rounded-lg hover:bg-blue-700 transition text-sm"
+                  >
+                    Pesan
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      router.push(`/profile/${member.id}`)
+                    }}
+                    className="py-2 bg-white text-primary border-2 border-primary font-semibold rounded-lg hover:bg-blue-50 transition text-sm"
+                  >
+                    Profil
+                  </button>
+                </div>
               )}
             </div>
           ))}

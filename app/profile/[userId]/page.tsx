@@ -33,7 +33,22 @@ export default function UserProfilePage() {
 
         // Get user's friends/connections
         const connections = await getUserFriends(userId)
-        setUserConnections(connections)
+        const hydratedConnections = await Promise.all(
+          (connections || []).map(async (connection: any) => {
+            const friendId =
+              typeof connection === "string"
+                ? connection
+                : connection?.friendId || connection?.id || ""
+            if (!friendId) return null
+            const friendProfile = await getUserById(friendId)
+            return {
+              id: friendId,
+              friendId,
+              displayName: friendProfile?.displayName || "Anggota",
+            }
+          })
+        )
+        setUserConnections(hydratedConnections.filter(Boolean))
       } catch (error) {
         console.error("Error fetching user data:", error)
       } finally {

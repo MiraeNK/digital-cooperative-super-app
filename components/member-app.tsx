@@ -32,11 +32,19 @@ import FloatingMessageButton from "./member/floating-message-button"
 interface Article {
   id: string
   title: string
-  category: string
-  author: string
-  views: number
-  cover: string
-  excerpt: string
+  category?: string
+  author?: string
+  authorId?: string
+  authorAvatar?: string
+  views?: number
+  likes?: number
+  cover?: string
+  coverImage?: string
+  excerpt?: string
+  description?: string
+  content?: string
+  tags?: string[]
+  createdAt?: any
 }
 
 type MemberAppProps = {
@@ -169,6 +177,13 @@ export function MemberApp({ initialChatId }: MemberAppProps) {
         <div className="flex-1 overflow-y-auto">
           {isMessagingOpen ? (
             <MessagingPage selectedChatId={selectedChat} onBack={handleBack} />
+
+          ) : activeTab === "articles" ? (
+            <ArticlesDiscoverySection
+              onArticleClick={setSelectedArticle}
+              onBack={handleBack}
+            />
+
           ) : (
             <div className="w-full px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 md:py-12">
               <div className="max-w-7xl mx-auto">
@@ -193,11 +208,11 @@ export function MemberApp({ initialChatId }: MemberAppProps) {
 
                   {/* BERITA */}
                   <div>
-                    <ArticlesSection onArticleClick={setSelectedArticle} />
+                    <ArticlesSection
+                      onArticleClick={setSelectedArticle}
+                      onViewAll={() => handleTabChange("articles")}
+                    />
                   </div>
-
-                  {/* JELAJAHI ARTIKEL (DISCOVERY SECTION) */}
-                  <ArticlesDiscoverySection onArticleClick={setSelectedArticle} />
 
                   {/* KESEHATAN */}
                   <div>

@@ -6,13 +6,15 @@ import { Heart, MessageCircle, MessageSquare, Badge, ThumbsUp, ThumbsDown, Trash
 import FloatingMessageButton from "./floating-message-button"
 import PublicProfile from "./public-profile"
 import { useAuth } from "@/components/auth-provider"
-import { getUserProfile, createForumPost, getForumPosts, addCommentToPost, deleteForumPost, deleteComment, voteOnPost, getForumPostsWithAuthorData, deleteForumPostByAdmin } from "@/lib/firebase"
+import { getUserProfile, createForumPost, getForumPosts, addCommentToPost, addReplyToComment, deleteForumPost, deleteComment, voteOnPost, getForumPostsWithAuthorData, deleteForumPostByAdmin, getCommentsForPost } from "@/lib/firebase"
 
 interface Comment {
   id: string
   author: string
   authorId: string
   content: string
+  replyToName?: string
+  replyToUserId?: string
   timestamp: string
   upvotes: number
   downvotes: number
@@ -53,10 +55,13 @@ export default function CommunityPage({ onChatSelect, userRole = "member" }: Com
   const [viewingProfileId, setViewingProfileId] = useState<string | null>(null)
   
   const [showComments, setShowComments] = useState<string | null>(null)
-  const [commentInput, setCommentInput] = useState("")
+  const [commentInputs, setCommentInputs] = useState<{ [postId: string]: string }>({})
+  const [activeReplyKey, setActiveReplyKey] = useState<string | null>(null)
+  const [replyTargets, setReplyTargets] = useState<{ [key: string]: { name: string; userId: string } }>({})
   const [carouselIndex, setCarouselIndex] = useState(0)
   const [showNewThread, setShowNewThread] = useState(false)
   const [newThreadType, setNewThreadType] = useState<"discussion" | "selling">("discussion")
+  const [newThreadTopic, setNewThreadTopic] = useState<"Keuangan & Bisnis" | "Hasil Tani" | "Kesehatan" | "Teknologi">("Teknologi")
   const [newThreadTitle, setNewThreadTitle] = useState("")
   const [newThreadContent, setNewThreadContent] = useState("")
   const [newThreadImage, setNewThreadImage] = useState<string | null>(null)
@@ -64,7 +69,8 @@ export default function CommunityPage({ onChatSelect, userRole = "member" }: Com
   const [expandedPost, setExpandedPost] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSavingPost, setIsSavingPost] = useState(false)
-  const [isSavingComment, setIsSavingComment] = useState(false)
+  const [savingCommentPostId, setSavingCommentPostId] = useState<string | null>(null)
+  const [savingReplyPostId, setSavingReplyPostId] = useState<string | null>(null)
   const [deletingPostId, setDeletingPostId] = useState<string | null>(null)
   const [userRole_, setUserRole_] = useState<"member" | "admin">("member")
 
@@ -147,28 +153,110 @@ export default function CommunityPage({ onChatSelect, userRole = "member" }: Com
 
   const [forumPosts, setForumPosts] = useState<ForumPost[]>(dummyPosts)
 
+  const formatPostTimestamp = (value: any) => {
+    const date =
+      value instanceof Date
+        ? value
+        : typeof value?.toDate === "function"
+          ? value.toDate()
+          : typeof value === "string" || typeof value === "number"
+            ? new Date(value)
+            : null
+    if (!date || Number.isNaN(date.getTime())) return "Baru saja"
+    return date.toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })
+  }
+
+  const formatCommentTimestamp = (value: any) => {
+    const date =
+      value instanceof Date
+        ? value
+        : typeof value?.toDate === "function"
+          ? value.toDate()
+          : typeof value === "string" || typeof value === "number"
+            ? new Date(value)
+            : null
+    if (!date || Number.isNaN(date.getTime())) return "Sekarang"
+    return date.toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })
+  }
+
+  const loadForumPosts = async () => {
+    setIsLoading(true)
+    try {
+      const posts = await getForumPostsWithAuthorData()
+      const normalizedPosts = await Promise.all(
+        posts.map(async (post: any) => {
+          let rawComments: any[] = []
+          try {
+            rawComments = await getCommentsForPost(post.id)
+          } catch (error) {
+            // Keep post visible even when comment subcollection read fails.
+            rawComments = []
+          }
+          const normalizedComments: Comment[] = await Promise.all(
+            (rawComments || []).map(async (comment: any) => {
+              let authorProfile: any = null
+              try {
+                authorProfile = await getUserProfile(comment.userId)
+              } catch (error) {
+                authorProfile = null
+              }
+              return {
+                id: comment.id,
+                author: authorProfile?.displayName || "Anggota",
+                authorId: comment.userId || "",
+                content: comment.content || "",
+                timestamp: formatCommentTimestamp(comment.createdAt || comment.timestamp),
+                upvotes: Number(comment.upvotes || 0),
+                downvotes: Number(comment.downvotes || 0),
+                replies: await Promise.all(
+                  ((comment.replies || []) as any[]).map(async (reply: any) => {
+                    let replyAuthorProfile: any = null
+                    try {
+                      replyAuthorProfile = await getUserProfile(reply.userId || reply.authorId || "")
+                    } catch (error) {
+                      replyAuthorProfile = null
+                    }
+                    return {
+                      id: reply.id || `r-${Date.now()}`,
+                      author: replyAuthorProfile?.displayName || reply.author || "Anggota",
+                      authorId: reply.userId || reply.authorId || "",
+                      content: reply.content || "",
+                      replyToName: reply.replyToName || "",
+                      replyToUserId: reply.replyToUserId || "",
+                      timestamp: formatCommentTimestamp(reply.createdAt || reply.timestamp),
+                      upvotes: Number(reply.upvotes || 0),
+                      downvotes: Number(reply.downvotes || 0),
+                    }
+                  }),
+                ),
+              }
+            }),
+          )
+
+          return {
+            ...post,
+            author: post.authorData?.displayName || post.author || "Anggota",
+            authorId: post.userId || post.authorId || "",
+            timestamp: formatPostTimestamp(post.createdAt || post.timestamp),
+            upvotes: Array.isArray(post.upvotes) ? post.upvotes.length : Number(post.upvotes || 0),
+            downvotes: Array.isArray(post.downvotes) ? post.downvotes.length : Number(post.downvotes || 0),
+            comments: normalizedComments,
+          }
+        }),
+      )
+
+      setForumPosts([...normalizedPosts, ...dummyPosts])
+    } catch (error) {
+      console.error("Error fetching posts:", error)
+      setForumPosts(dummyPosts)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   // Fetch posts from Firebase on mount
   useEffect(() => {
-    const fetchPosts = async () => {
-      setIsLoading(true)
-      try {
-        const posts = await getForumPostsWithAuthorData()
-        // Combine Firebase posts dengan dummy posts, ensuring comments are always arrays
-        const normalizedPosts = posts.map((post: any) => ({
-          ...post,
-          comments: post.comments || []
-        }))
-        const combinedPosts = [...normalizedPosts, ...dummyPosts]
-        setForumPosts(combinedPosts)
-      } catch (error) {
-        console.error("Error fetching posts:", error)
-        setForumPosts(dummyPosts)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    fetchPosts()
+    loadForumPosts()
   }, [])
 
   // Cache user profiles untuk menampilkan author names
@@ -263,7 +351,7 @@ export default function CommunityPage({ onChatSelect, userRole = "member" }: Com
     try {
       setDeletingPostId(postId)
       await deleteForumPostByAdmin(postId, user.uid, userRole_)
-      setForumPosts(forumPosts.filter((post) => post.id !== postId))
+      setForumPosts((prev) => prev.filter((post) => post.id !== postId))
       alert("Postingan berhasil dihapus")
     } catch (error) {
       console.error("Error deleting post:", error)
@@ -274,23 +362,22 @@ export default function CommunityPage({ onChatSelect, userRole = "member" }: Com
   }
 
   const handleAddComment = async (postId: string) => {
-    if (!user || !commentInput.trim()) return
-    
-    setIsSavingComment(true)
-    try {
-      await addCommentToPost(postId, user.uid, commentInput)
-      setForumPosts(
-        forumPosts.map((post) =>
+    const commentText = (commentInputs[postId] || "").trim()
+    if (!user || !commentText) return
+
+    if (postId.startsWith("dummy-")) {
+      setForumPosts((prev) =>
+        prev.map((post) =>
           post.id === postId
             ? {
                 ...post,
                 comments: [
-                  ...post.comments,
+                  ...(post.comments || []),
                   {
                     id: `c${Date.now()}`,
                     author: userProfile?.displayName || "User",
                     authorId: user.uid,
-                    content: commentInput,
+                    content: commentText,
                     timestamp: "Sekarang",
                     upvotes: 0,
                     downvotes: 0,
@@ -300,11 +387,134 @@ export default function CommunityPage({ onChatSelect, userRole = "member" }: Com
             : post,
         ),
       )
-      setCommentInput("")
+      setCommentInputs((prev) => ({ ...prev, [postId]: "" }))
+      return
+    }
+
+    setSavingCommentPostId(postId)
+    try {
+      await addCommentToPost(postId, user.uid, commentText)
+      setForumPosts((prev) =>
+        prev.map((post) =>
+          post.id === postId
+            ? {
+                ...post,
+                comments: [
+                  ...(post.comments || []),
+                  {
+                    id: `c${Date.now()}`,
+                    author: userProfile?.displayName || "User",
+                    authorId: user.uid,
+                    content: commentText,
+                    timestamp: "Sekarang",
+                    upvotes: 0,
+                    downvotes: 0,
+                  },
+                ],
+              }
+            : post,
+        ),
+      )
+      setCommentInputs((prev) => ({ ...prev, [postId]: "" }))
     } catch (error) {
       console.error("Error adding comment:", error)
+      alert("Gagal mengirim komentar. Coba lagi.")
     } finally {
-      setIsSavingComment(false)
+      setSavingCommentPostId(null)
+    }
+  }
+
+  const handleAddReply = async (postId: string, commentId: string) => {
+    const replyKey = `${postId}:${commentId}`
+    const replyText = (commentInputs[postId] || "").trim()
+    const replyTarget = replyTargets[replyKey]
+    if (!user || !replyText) return
+
+    if (postId.startsWith("dummy-")) {
+      setForumPosts((prev) =>
+        prev.map((post) =>
+          post.id !== postId
+            ? post
+            : {
+                ...post,
+                comments: (post.comments || []).map((comment) =>
+                  comment.id !== commentId
+                    ? comment
+                    : {
+                        ...comment,
+                        replies: [
+                          ...(comment.replies || []),
+                          {
+                            id: `r-${Date.now()}`,
+                            author: userProfile?.displayName || "User",
+                            authorId: user.uid,
+                            content: replyText,
+                            replyToName: replyTarget?.name || "",
+                            replyToUserId: replyTarget?.userId || "",
+                            timestamp: "Sekarang",
+                            upvotes: 0,
+                            downvotes: 0,
+                          },
+                        ],
+                      },
+                ),
+              },
+        ),
+      )
+      setCommentInputs((prev) => ({ ...prev, [postId]: "" }))
+      setReplyTargets((prev) => ({ ...prev, [replyKey]: { name: "", userId: "" } }))
+      setActiveReplyKey(null)
+      return
+    }
+
+    setSavingReplyPostId(postId)
+    try {
+      await addReplyToComment(
+        postId,
+        commentId,
+        user.uid,
+        replyText,
+        replyTarget?.userId || "",
+        replyTarget?.name || "",
+      )
+      setForumPosts((prev) =>
+        prev.map((post) =>
+          post.id !== postId
+            ? post
+            : {
+                ...post,
+                comments: (post.comments || []).map((comment) =>
+                  comment.id !== commentId
+                    ? comment
+                    : {
+                        ...comment,
+                        replies: [
+                          ...(comment.replies || []),
+                          {
+                            id: `r-${Date.now()}`,
+                            author: userProfile?.displayName || "User",
+                            authorId: user.uid,
+                            content: replyText,
+                            replyToName: replyTarget?.name || "",
+                            replyToUserId: replyTarget?.userId || "",
+                            timestamp: "Sekarang",
+                            upvotes: 0,
+                            downvotes: 0,
+                          },
+                        ],
+                      },
+                ),
+              },
+        ),
+      )
+      setCommentInputs((prev) => ({ ...prev, [postId]: "" }))
+      setReplyTargets((prev) => ({ ...prev, [replyKey]: { name: "", userId: "" } }))
+      setActiveReplyKey(null)
+    } catch (error) {
+      console.error("Error adding reply:", error)
+      alert("Gagal mengirim balasan. Coba lagi.")
+    } finally {
+      setSavingReplyPostId(null)
     }
   }
 
@@ -316,30 +526,49 @@ export default function CommunityPage({ onChatSelect, userRole = "member" }: Com
     
     setIsSavingPost(true)
     try {
-      await createForumPost(user.uid, {
+      const createdId = await createForumPost(user.uid, {
         type: newThreadType,
-        topic: selectedTopics.length > 0 ? selectedTopics[0] : "Teknologi",
+        topic: newThreadTopic,
         author: userProfile?.displayName || "User",
         title: newThreadTitle,
         content: newThreadContent,
         image: newThreadImage || null,
         price: newThreadType === "selling" ? Number(newThreadPrice) : null,
       })
-      
-      // Refresh posts
-      const posts = await getForumPosts()
-      const combinedPosts = [...(posts as any[]), ...dummyPosts]
-      setForumPosts(combinedPosts)
+
+      // Optimistic update supaya post langsung muncul walau reload backend sedang lambat.
+      setForumPosts((prev) => [
+        {
+          id: createdId || `tmp-${Date.now()}`,
+          type: newThreadType,
+          topic: newThreadTopic,
+          author: userProfile?.displayName || "User",
+          authorId: user.uid,
+          title: newThreadTitle,
+          content: newThreadContent,
+          image: newThreadImage || undefined,
+          price: newThreadType === "selling" ? Number(newThreadPrice || 0) : undefined,
+          timestamp: "Baru saja",
+          upvotes: 0,
+          downvotes: 0,
+          comments: [],
+        },
+        ...prev,
+      ])
+
+      // Refresh posts agar metadata sinkron dengan server saat data siap.
+      await loadForumPosts()
       
       setNewThreadTitle("")
       setNewThreadContent("")
       setNewThreadImage(null)
       setNewThreadPrice("")
       setNewThreadType("discussion")
+      setNewThreadTopic("Teknologi")
       setShowNewThread(false)
     } catch (error) {
       console.error("Error creating thread:", error)
-      alert("Gagal membuat post")
+      alert((error as any)?.message || "Gagal membuat post")
     } finally {
       setIsSavingPost(false)
     }
@@ -513,6 +742,17 @@ export default function CommunityPage({ onChatSelect, userRole = "member" }: Com
               onChange={(e) => setNewThreadTitle(e.target.value)}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />
+
+            <select
+              value={newThreadTopic}
+              onChange={(e) => setNewThreadTopic(e.target.value as "Keuangan & Bisnis" | "Hasil Tani" | "Kesehatan" | "Teknologi")}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+            >
+              <option value="Keuangan & Bisnis">Keuangan & Bisnis</option>
+              <option value="Hasil Tani">Hasil Tani</option>
+              <option value="Kesehatan">Kesehatan</option>
+              <option value="Teknologi">Teknologi</option>
+            </select>
             
             <textarea
               placeholder={newThreadType === "selling" ? "Deskripsi produk..." : "Deskripsi pertanyaan atau pemikiran Anda..."}
@@ -556,9 +796,10 @@ export default function CommunityPage({ onChatSelect, userRole = "member" }: Com
             <div className="flex gap-2">
               <button
                 onClick={createNewThread}
+                disabled={isSavingPost}
                 className="flex-1 py-2 bg-primary text-white font-semibold rounded-lg hover:bg-blue-700 transition text-sm"
               >
-                Buat
+                {isSavingPost ? "Menyimpan..." : "Buat"}
               </button>
               <button
                 onClick={() => setShowNewThread(false)}
@@ -739,6 +980,10 @@ export default function CommunityPage({ onChatSelect, userRole = "member" }: Com
                     <div className="space-y-4 max-h-96 overflow-y-auto">
                       {(post.comments || []).map((comment) => (
                         <div key={comment.id} className="space-y-2">
+                          {(() => {
+                            const replyKey = `${post.id}:${comment.id}`
+                            return (
+                              <>
                           {/* Main Comment */}
                           <div className="bg-white rounded p-3 space-y-2">
                             <div className="flex items-center gap-2">
@@ -769,7 +1014,22 @@ export default function CommunityPage({ onChatSelect, userRole = "member" }: Com
                                 <ThumbsUp className="w-3 h-3" />
                                 {comment.upvotes}
                               </button>
-                              <button className="text-xs text-slate-500 hover:text-slate-700 transition">Balas</button>
+                              <button
+                                onClick={() => {
+                                  const isSameKey = activeReplyKey === replyKey
+                                  setActiveReplyKey(isSameKey ? null : replyKey)
+                                  setReplyTargets((prev) => ({
+                                    ...prev,
+                                    [replyKey]: {
+                                      name: comment.author || "Anggota",
+                                      userId: comment.authorId || "",
+                                    },
+                                  }))
+                                }}
+                                className="text-xs text-slate-500 hover:text-slate-700 transition"
+                              >
+                                Balas
+                              </button>
                             </div>
                           </div>
 
@@ -787,40 +1047,87 @@ export default function CommunityPage({ onChatSelect, userRole = "member" }: Com
                                       <p className="text-xs text-slate-500">{reply.timestamp}</p>
                                     </div>
                                   </div>
-                                  <p className="text-xs text-slate-700">{reply.content}</p>
+                                  <p className="text-xs text-slate-700">
+                                    {reply.replyToName ? <span className="font-semibold text-primary">@{reply.replyToName} </span> : null}
+                                    {reply.content}
+                                  </p>
                                   <div className="flex items-center gap-4 pt-2">
                                     <button className="flex items-center gap-1 text-xs text-slate-500 hover:text-primary transition">
                                       <ThumbsUp className="w-3 h-3" />
                                       {reply.upvotes}
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setActiveReplyKey(replyKey)
+                                        setReplyTargets((prev) => ({
+                                          ...prev,
+                                          [replyKey]: {
+                                            name: reply.author || "Anggota",
+                                            userId: reply.authorId || "",
+                                          },
+                                        }))
+                                      }}
+                                      className="text-xs text-slate-500 hover:text-slate-700 transition"
+                                    >
+                                      Balas
                                     </button>
                                   </div>
                                 </div>
                               ))}
                             </div>
                           )}
+                              </>
+                            )
+                          })()}
                         </div>
                       ))}
                     </div>
 
                     {/* Comment Input */}
                     <div className="flex gap-2 pt-2 border-t border-slate-200">
+                      {activeReplyKey?.startsWith(`${post.id}:`) && (
+                        <div className="w-full text-xs text-slate-600">
+                          Membalas <span className="font-semibold text-primary">@{replyTargets[activeReplyKey]?.name || "Anggota"}</span>
+                          <button
+                            onClick={() => setActiveReplyKey(null)}
+                            className="ml-2 text-slate-500 hover:text-slate-700"
+                          >
+                            Batal
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
                       <input
                         type="text"
                         placeholder="Tulis komentar..."
-                        value={commentInput}
-                        onChange={(e) => setCommentInput(e.target.value)}
-                        onKeyPress={(e) => {
+                        value={commentInputs[post.id] || ""}
+                        onChange={(e) => setCommentInputs((prev) => ({ ...prev, [post.id]: e.target.value }))}
+                        onKeyDown={(e) => {
                           if (e.key === "Enter") {
-                            addComment(post.id)
+                            if (activeReplyKey?.startsWith(`${post.id}:`)) {
+                              const [, commentId = ""] = activeReplyKey.split(":")
+                              handleAddReply(post.id, commentId)
+                            } else {
+                              addComment(post.id)
+                            }
                           }
                         }}
                         className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                       />
                       <button
-                        onClick={() => addComment(post.id)}
-                        className="px-3 py-2 bg-primary text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition"
+                        onClick={() => {
+                          if (activeReplyKey?.startsWith(`${post.id}:`)) {
+                            const [, commentId = ""] = activeReplyKey.split(":")
+                            handleAddReply(post.id, commentId)
+                          } else {
+                            addComment(post.id)
+                          }
+                        }}
+                        disabled={(savingCommentPostId === post.id || savingReplyPostId === post.id) || !(commentInputs[post.id] || "").trim()}
+                        className="px-3 py-2 bg-primary text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition disabled:opacity-60"
                       >
-                        Kirim
+                        {(savingCommentPostId === post.id || savingReplyPostId === post.id) ? "..." : "Kirim"}
                       </button>
                     </div>
                   </div>

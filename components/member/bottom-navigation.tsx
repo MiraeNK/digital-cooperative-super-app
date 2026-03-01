@@ -20,8 +20,11 @@ export default function BottomNavigation({ activeTab, onTabChange, sidebarExpand
     { id: "profile", label: "Profil", icon: User },
   ]
 
+  const internalLinks = [
+    { id: "articles", label: "Artikel", icon: BookOpen },
+  ]
+
   const externalLinks = [
-    { id: "articles", label: "Artikel", icon: BookOpen, href: "/app/articles" },
     { id: "members", label: "Anggota", icon: Users, href: "/app/members" },
   ]
 
@@ -50,17 +53,22 @@ export default function BottomNavigation({ activeTab, onTabChange, sidebarExpand
         )
       })}
       
-      {/* External Navigation Links - Only on Desktop */}
+      {/* Internal Tab Links - Only on Desktop */}
       <div className="hidden lg:flex lg:flex-col lg:gap-2 lg:mt-4 lg:pt-4 lg:border-t lg:border-slate-200 w-full">
-        {externalLinks.map((link) => {
+        {internalLinks.map((link) => {
           const Icon = link.icon
+          const isActive = activeTab === link.id
           return (
             <button
               key={link.id}
-              onClick={() => router.push(link.href)}
-              className="flex lg:w-full flex-col lg:flex-row lg:items-center lg:gap-3 items-center justify-center lg:justify-start py-3 lg:px-4 lg:py-3 transition-colors rounded-lg text-slate-700 hover:bg-slate-100"
+              onClick={() => onTabChange(link.id)}
+              className={`flex lg:w-full flex-col lg:flex-row lg:items-center lg:gap-3 items-center justify-center lg:justify-start py-3 lg:px-4 lg:py-3 transition-colors rounded-lg ${
+                isActive
+                  ? "text-white bg-primary lg:bg-primary lg:text-white shadow-sm"
+                  : "text-slate-700 hover:bg-slate-100"
+              }`}
             >
-              <Icon className="w-6 h-6 flex-shrink-0 text-slate-600" />
+              <Icon className={`w-6 h-6 flex-shrink-0 ${isActive ? "text-white" : "text-slate-600"}`} />
               {sidebarExpanded && <span className="text-xs lg:text-sm font-semibold mt-1 lg:mt-0">{link.label}</span>}
             </button>
           )

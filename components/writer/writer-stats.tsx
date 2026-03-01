@@ -5,7 +5,18 @@ import { useState, useEffect } from "react"
 import { useAuth } from "@/components/auth-provider"
 import { getWriterStats, getArticlesByAuthor } from "@/lib/firebase"
 
-export default function WriterStats() {
+const toDate = (value: any): Date | null => {
+  if (!value) return null
+  if (value instanceof Date) return value
+  if (typeof value?.toDate === "function") return value.toDate()
+  if (typeof value === "string" || typeof value === "number") {
+    const parsed = new Date(value)
+    return Number.isNaN(parsed.getTime()) ? null : parsed
+  }
+  return null
+}
+
+export default function WriterStats({ refreshToken = 0 }: { refreshToken?: number }) {
   const { user } = useAuth()
   const [stats, setStats] = useState({ totalArticles: 0, totalViews: 0, totalLikes: 0, averageViewsPerArticle: 0 })
   const [articles, setArticles] = useState<any[]>([])
@@ -32,7 +43,7 @@ export default function WriterStats() {
     }
 
     fetchData()
-  }, [user])
+  }, [user, refreshToken])
 
   const statCards = [
     { label: "Total Dibaca", value: stats.totalViews.toString(), icon: Eye, color: "bg-blue-100 text-primary" },
@@ -96,7 +107,7 @@ export default function WriterStats() {
                 <div>
                   <p className="font-semibold text-slate-900 mb-1">{article.title}</p>
                   <p className="text-xs text-slate-500">
-                    {article.createdAt ? new Date(article.createdAt).toLocaleDateString("id-ID") : "Terbaru"}
+                    {toDate(article.createdAt)?.toLocaleDateString("id-ID") || "Terbaru"}
                   </p>
                 </div>
                 <div className="text-right">

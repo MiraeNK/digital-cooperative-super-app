@@ -56,6 +56,55 @@ if (isConfigValid) {
 
 export { auth, db, googleProvider };
 
+const decodeHtmlEntities = (value: string) =>
+  value
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'");
+
+const toPlainPreviewText = (value: any) => {
+  if (!value || typeof value !== "string") return "";
+  return decodeHtmlEntities(value)
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/!\[(.*?)\]\((.*?)\)/g, "$1")
+    .replace(/\[(.*?)\]\((.*?)\)/g, "$1")
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^\s*>\s?/gm, "")
+    .replace(/^\s*[-*+]\s+/gm, "")
+    .replace(/^\s*\d+\.\s+/gm, "")
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/\*(.*?)\*/g, "$1")
+    .replace(/~~(.*?)~~/g, "$1")
+    .replace(/<u>(.*?)<\/u>/gi, "$1")
+    .replace(/:::[\s\S]*?:::/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
+const withArticlePreview = (article: any) => {
+  const source =
+    toPlainPreviewText(article?.description) ||
+    toPlainPreviewText(article?.excerpt) ||
+    toPlainPreviewText(article?.contentMarkdown) ||
+    toPlainPreviewText(article?.content);
+
+  const description = source ? source.slice(0, 220) + (source.length > 220 ? "..." : "") : "";
+  const excerpt = source ? source.slice(0, 140) + (source.length > 140 ? "..." : "") : "";
+
+  return {
+    ...article,
+    description: article?.description ? (toPlainPreviewText(article.description) || description) : description,
+    excerpt: article?.excerpt ? (toPlainPreviewText(article.excerpt) || excerpt) : excerpt,
+  };
+};
+
 // ============== USER ==============
 
 export const createUserProfile = async (user: any, name: string) => {
@@ -72,6 +121,7 @@ export const createUserProfile = async (user: any, name: string) => {
 
 export const getUserProfile = async (uid: string) => {
   if (!db) return null;
+  if (!uid || typeof uid !== "string") return null;
   const userRef = doc(db, "users", uid);
   const userSnap = await getDoc(userRef);
   if (userSnap.exists()) return userSnap.data();
@@ -102,7 +152,7 @@ export const getAllMembers = async () => {
   try {
     const q = query(collection(db, "users"), where("role", "==", "member"));
     const snapshot = await getDocs(q);
-    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    return snapshot.docs.map((doc) => withArticlePreview({ id: doc.id, ...doc.data() }));
   } catch (error) {
     console.error("Error fetching members:", error);
     return [];
@@ -188,7 +238,7 @@ export const searchUsers = async (searchQuery: string) => {
       where("displayName", "<=", searchQuery + "\uf8ff")
     );
     const snapshot = await getDocs(q);
-    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    return snapshot.docs.map((doc) => withArticlePreview({ id: doc.id, ...doc.data() }));
   } catch (error) {
     console.error("Error searching users:", error);
     return [];
@@ -309,7 +359,7 @@ export const getArticleById = async (articleId: string) => {
   try {
     const docRef = doc(db, "articles", articleId);
     const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) return { id: docSnap.id, ...docSnap.data() };
+    if (docSnap.exists()) return withArticlePreview({ id: docSnap.id, ...docSnap.data() });
     return null;
   } catch (error) {
     console.error("Error fetching article:", error);
@@ -326,8 +376,30 @@ export const getArticlesByAuthor = async (authorId: string) => {
       orderBy("createdAt", "desc")
     );
     const snapshot = await getDocs(q);
-    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    return snapshot.docs.map((doc) => withArticlePreview({ id: doc.id, ...doc.data() }));
   } catch (error) {
+    const code = (error as any)?.code || "";
+    // Fallback when composite index is not ready yet.
+    if (code === "failed-precondition") {
+      try {
+        const fallbackQ = query(
+          collection(db, "articles"),
+          where("authorId", "==", authorId)
+        );
+        const fallbackSnap = await getDocs(fallbackQ);
+        return fallbackSnap.docs
+          .map((doc) => withArticlePreview({ id: doc.id, ...doc.data() }))
+          .sort((a: any, b: any) => {
+            const aTime = typeof a?.createdAt?.toMillis === "function" ? a.createdAt.toMillis() : 0;
+            const bTime = typeof b?.createdAt?.toMillis === "function" ? b.createdAt.toMillis() : 0;
+            return bTime - aTime;
+          });
+      } catch (fallbackError) {
+        console.error("Error fetching author articles fallback:", fallbackError);
+        return [];
+      }
+    }
+
     console.error("Error fetching author articles:", error);
     return [];
   }
@@ -399,7 +471,7 @@ export const getArticlesWithAuthorData = async (limit_count: number = 10) => {
       snapshot.docs.map(async (doc) => {
         const data = doc.data();
         const authorData = await getUserProfile(data.authorId);
-        return { id: doc.id, ...data, authorData };
+        return withArticlePreview({ id: doc.id, ...data, authorData });
       })
     );
     return articles;
@@ -483,7 +555,8 @@ export const getForumPostsWithAuthorData = async () => {
     const posts = await Promise.all(
       snapshot.docs.map(async (doc) => {
         const data = doc.data();
-        const authorData = await getUserProfile(data.userId);
+        const authorId = data.userId || data.authorId || "";
+        const authorData = authorId ? await getUserProfile(authorId) : null;
         return { id: doc.id, ...data, authorData };
       })
     );
@@ -632,18 +705,35 @@ export const sendMessageWithFriendCheck = async (senderId: string, receiverId: s
 export const getConversation = async (userId1: string, userId2: string) => {
   if (!db) return [];
   try {
-    const q = query(
-      collection(db, "messages"),
-      where("senderId", "in", [userId1, userId2]),
-      orderBy("timestamp", "asc")
-    );
-    const snapshot = await getDocs(q);
-    return snapshot.docs
-      .filter(doc =>
-        (doc.data().senderId === userId1 && doc.data().receiverId === userId2) ||
-        (doc.data().senderId === userId2 && doc.data().receiverId === userId1)
+    // Avoid composite index dependency by querying per-sender and sorting client-side.
+    const [sentByUser1, sentByUser2] = await Promise.all([
+      getDocs(
+        query(
+          collection(db, "messages"),
+          where("senderId", "==", userId1)
+        )
+      ),
+      getDocs(
+        query(
+          collection(db, "messages"),
+          where("senderId", "==", userId2)
+        )
+      ),
+    ]);
+
+    const rows = [...sentByUser1.docs, ...sentByUser2.docs]
+      .map((doc) => ({ id: doc.id, ...doc.data() }))
+      .filter((row: any) =>
+        (row.senderId === userId1 && row.receiverId === userId2) ||
+        (row.senderId === userId2 && row.receiverId === userId1)
       )
-      .map((doc) => ({ id: doc.id, ...doc.data() }));
+      .sort((a: any, b: any) => {
+        const aTime = typeof a?.timestamp?.toMillis === "function" ? a.timestamp.toMillis() : 0;
+        const bTime = typeof b?.timestamp?.toMillis === "function" ? b.timestamp.toMillis() : 0;
+        return aTime - bTime;
+      });
+
+    return rows;
   } catch (error) {
     console.error("Error fetching conversation:", error);
     return [];
@@ -706,6 +796,56 @@ export const markMessageAsRead = async (messageId: string) => {
   }
 };
 
+export const markChatAsRead = async (userId: string, otherUserId: string) => {
+  if (!db) throw new Error("Database not initialized");
+  try {
+    const chatRef = doc(db, "chats", userId, "chats", otherUserId);
+    await setDoc(
+      chatRef,
+      {
+        unread: false,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+  } catch (error) {
+    console.error("Error marking chat as read:", error);
+    throw error;
+  }
+};
+
+export const clearPendingMessagesFromSender = async (userId: string, senderId: string) => {
+  if (!db) throw new Error("Database not initialized");
+  try {
+    const userRef = doc(db, "users", userId);
+    const userSnap = await getDoc(userRef);
+    const pendingIds: string[] = userSnap.data()?.pendingMessages || [];
+    if (!pendingIds.length) return;
+
+    const toRemove: string[] = [];
+    await Promise.all(
+      pendingIds.map(async (msgId) => {
+        const msgSnap = await getDoc(doc(db, "messages", msgId));
+        const data: any = msgSnap.data() || {};
+        if (!msgSnap.exists()) {
+          toRemove.push(msgId);
+          return;
+        }
+        if (data.senderId === senderId || data.read === true) {
+          toRemove.push(msgId);
+        }
+      })
+    );
+
+    if (toRemove.length > 0) {
+      await updateDoc(userRef, { pendingMessages: arrayRemove(...toRemove) });
+    }
+  } catch (error) {
+    console.error("Error clearing pending messages:", error);
+    throw error;
+  }
+};
+
 export const getPendingMessages = async (userId: string) => {
   if (!db) return [];
   try {
@@ -761,6 +901,43 @@ export const getPendingKYCRequests = async () => {
   }
 };
 
+export const addReplyToComment = async (
+  postId: string,
+  commentId: string,
+  userId: string,
+  content: string,
+  replyToUserId?: string,
+  replyToName?: string
+) => {
+  if (!db) throw new Error("Database not initialized");
+  try {
+    if (!postId || !commentId || !userId || !content?.trim()) {
+      throw new Error("Missing required fields for reply");
+    }
+
+    const commentRef = doc(db, `forumPosts/${postId}/comments`, commentId);
+    const replyItem = {
+      id: `r-${Date.now()}`,
+      userId,
+      content: content.trim(),
+      replyToUserId: replyToUserId || "",
+      replyToName: replyToName || "",
+      createdAt: Timestamp.now(),
+      upvotes: 0,
+      downvotes: 0,
+    };
+
+    await updateDoc(commentRef, {
+      replies: arrayUnion(replyItem),
+    });
+
+    return replyItem.id;
+  } catch (error) {
+    console.error("Error adding reply:", error);
+    throw error;
+  }
+};
+
 export const updateKYCStatus = async (
   memberId: string,
   status: "verified" | "rejected" | "pending",
@@ -800,7 +977,8 @@ export const getKYCForumPosts = async () => {
     const posts = await Promise.all(
       snapshot.docs.map(async (docSnap) => {
         const data = docSnap.data();
-        const authorData = await getUserProfile(data.userId);
+        const authorId = data.userId || data.authorId || "";
+        const authorData = authorId ? await getUserProfile(authorId) : null;
         return {
           id: docSnap.id,
           ...data,

@@ -21,6 +21,7 @@ interface Article {
   id: string
   title: string
   description?: string
+  content?: string
   excerpt?: string
   tags?: string[]
   author: string
@@ -39,10 +40,12 @@ interface ArticlesDiscoverySectionProps {
 
 // ─── DUMMY DATA (fallback kalau Firebase kosong) ───────────────────────────────
 const DUMMY_ARTICLES: Article[] = [
+  // Fallback articles with full content body for preview/testing.
   {
     id: "d1",
     title: "Cara Cerdas Mengembangkan Usaha Tani dengan Modal Koperasi",
     description: "Panduan lengkap memanfaatkan fasilitas pinjaman koperasi untuk meningkatkan hasil pertanian dan pendapatan keluarga.",
+    content: "## Memulai dengan Modal Koperasi\nGunakan modal bertahap agar arus kas tetap aman.\n\n### Langkah Dasar\n- Susun rencana kebutuhan\n- Hitung biaya operasional\n- Review hasil tiap siklus panen\n\n:::quote theme=amber font=serif\nPertumbuhan yang sehat datang dari disiplin pencatatan.\n:::\n\n:::block theme=blue font=sans title=\"Catatan\"\nPisahkan dana produksi dan dana darurat agar usaha tetap stabil saat harga pasar turun.\n:::",
     tags: ["Pertanian"],
     author: "Tubagus Ahmad",
     views: 3240,
@@ -53,6 +56,7 @@ const DUMMY_ARTICLES: Article[] = [
     id: "d2",
     title: "Strategi UMKM Go Digital: Dari Pasar Tradisional ke Marketplace",
     description: "Transformasi usaha kecil menengah ke platform digital terbukti meningkatkan omzet hingga 3x lipat dalam 6 bulan.",
+    content: "## UMKM Go Digital\nMarketplace membantu memperluas jangkauan tanpa membuka toko baru.\n\n### Checklist\n- Foto produk konsisten\n- Deskripsi jelas\n- Respon chat cepat\n\n:::quote theme=purple font=serif\nKecepatan respon sering lebih menentukan daripada harga.\n:::\n\n:::block theme=green font=sans title=\"Workflow\"\nTetapkan jam operasional admin agar pelanggan mendapat pengalaman layanan yang konsisten.\n:::",
     tags: ["Keuangan & Bisnis"],
     author: "Dewi Lestari",
     views: 2180,
@@ -63,6 +67,7 @@ const DUMMY_ARTICLES: Article[] = [
     id: "d3",
     title: "Kesehatan Jiwa Petani: Mengelola Tekanan Musim Panen",
     description: "Bagaimana komunitas koperasi bisa saling mendukung kesehatan mental antar anggota di tengah tantangan agraris.",
+    content: "## Kesehatan Mental\nTekanan target panen perlu diimbangi manajemen istirahat.\n\n### Praktik Harian\n- Istirahat terjadwal\n- Komunikasi terbuka\n- Rotasi beban kerja\n\n:::quote theme=blue font=serif\nTim yang sehat secara mental cenderung lebih produktif dan minim konflik.\n:::\n\n:::block theme=slate font=sans title=\"Pengingat\"\nJadikan pertemuan mingguan sebagai ruang evaluasi teknis dan emosional.\n:::",
     tags: ["Kesehatan"],
     author: "dr. Wahyu Subagyo",
     views: 1870,
@@ -73,6 +78,7 @@ const DUMMY_ARTICLES: Article[] = [
     id: "d4",
     title: "IoT & Sensor Tanah: Teknologi Murah untuk Panen Maksimal",
     description: "Alat sensor tanah berbasis IoT kini bisa diakses UMKM dengan harga terjangkau dan hasil yang luar biasa.",
+    content: "## IoT Pertanian\nSensor membantu keputusan pemupukan berbasis data.\n\n### Dampak\n- Efisiensi air meningkat\n- Pemupukan tepat waktu\n- Risiko gagal panen menurun\n\n:::quote theme=green font=serif\nData kecil yang konsisten sering lebih berguna daripada asumsi besar.\n:::\n\n:::block theme=amber font=mono title=\"Implementasi\"\nMulai dari satu petak uji coba sebelum ekspansi ke seluruh lahan.\n:::",
     tags: ["Teknologi"],
     author: "Roni Hermawan",
     views: 1540,
@@ -83,6 +89,7 @@ const DUMMY_ARTICLES: Article[] = [
     id: "d5",
     title: "Hasil Ternak Sapi Potong: Menghitung Untung Bersih yang Realistis",
     description: "Analisis biaya produksi dan proyeksi keuntungan beternak sapi potong skala rumahan dengan dukungan koperasi.",
+    content: "## Sapi Potong Rumahan\nSkala kecil tetap bisa untung jika biaya pakan terkontrol.\n\n### Fokus\n- Konversi pakan\n- Jadwal vaksin\n- Kualitas kandang\n\n:::quote theme=blue font=serif\nMargin usaha ternak ditentukan oleh disiplin biaya harian.\n:::\n\n:::block theme=slate font=sans title=\"Kontrol\"\nGunakan catatan berat mingguan untuk memantau pertumbuhan secara objektif.\n:::",
     tags: ["Peternakan"],
     author: "Hendra Wijaya",
     views: 2650,
@@ -93,6 +100,7 @@ const DUMMY_ARTICLES: Article[] = [
     id: "d6",
     title: "Raih Sertifikasi Halal UMKM: Langkah Demi Langkah",
     description: "Panduan praktis mengurus sertifikasi halal produk UMKM agar bisa menembus pasar modern dan ekspor.",
+    content: "## Sertifikasi Halal UMKM\nDokumen rapi mempercepat proses verifikasi.\n\n### Dokumen Wajib\n- Data bahan baku\n- Proses produksi\n- SOP kebersihan\n\n:::quote theme=purple font=serif\nDokumentasi yang baik memperkecil revisi berulang.\n:::\n\n:::block theme=green font=sans title=\"Tips\"\nBuat template dokumen standar agar proses sertifikasi produk berikutnya lebih cepat.\n:::",
     tags: ["Keuangan & Bisnis"],
     author: "Siti Rahayu",
     views: 1920,
@@ -103,6 +111,7 @@ const DUMMY_ARTICLES: Article[] = [
     id: "d7",
     title: "Tips Menjaga Kualitas Beras Organik Selama Penyimpanan",
     description: "Teknik penyimpanan pasca panen yang benar untuk mempertahankan kualitas dan nilai jual beras organik.",
+    content: "## Penyimpanan Beras Organik\nSuhu dan kelembapan adalah faktor paling kritis.\n\n### Standar Dasar\n- Ventilasi gudang baik\n- Rotasi stok FIFO\n- Pemeriksaan kualitas berkala\n\n:::quote theme=amber font=serif\nKualitas pasca panen menentukan harga jual akhir.\n:::\n\n:::block theme=blue font=sans title=\"Checklist\"\nGunakan label batch agar traceability produk tetap terjaga.\n:::",
     tags: ["Pertanian"],
     author: "Agus Santoso",
     views: 1340,
@@ -128,6 +137,40 @@ function readTime(text?: string) {
   const words = text.split(" ").length
   const mins = Math.max(1, Math.round(words / 200))
   return `${mins} min baca`
+}
+
+function toPreviewText(raw?: string) {
+  if (!raw) return ""
+  return raw
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/<[!/a-zA-Z][^\s>]*/g, " ")
+    .replace(/!\[(.*?)\]\((.*?)\)/g, "$1")
+    .replace(/\[(.*?)\]\((.*?)\)/g, "$1")
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^\s*>\s?/gm, "")
+    .replace(/^\s*[-*+]\s+/gm, "")
+    .replace(/^\s*\d+\.\s+/gm, "")
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/\*(.*?)\*/g, "$1")
+    .replace(/~~(.*?)~~/g, "$1")
+    .replace(/<u>(.*?)<\/u>/gi, "$1")
+    .replace(/:::[\s\S]*?:::/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+function getPreviewText(article: Article) {
+  return toPreviewText(article.description || article.excerpt || article.content || "")
 }
 
 // ─── Helper: ambil inisial ───────────────────────────────────────────────────
@@ -645,7 +688,7 @@ export default function ArticlesDiscoverySection({
                         WebkitBoxOrient: "vertical" as any,
                         overflow: "hidden",
                       }}>
-                        {featuredArticle.description || featuredArticle.excerpt}
+                        {getPreviewText(featuredArticle)}
                       </div>
 
                       {/* Stats */}
@@ -680,7 +723,7 @@ export default function ArticlesDiscoverySection({
                             {featuredArticle.author}
                           </div>
                           <div style={{ fontSize: 12, color: "#aaa" }}>
-                            {readTime(featuredArticle.description)}
+                            {readTime(getPreviewText(featuredArticle))}
                           </div>
                         </div>
 
@@ -783,7 +826,7 @@ export default function ArticlesDiscoverySection({
                             WebkitBoxOrient: "vertical" as any,
                             overflow: "hidden",
                           }}>
-                            {article.description || article.excerpt}
+                            {getPreviewText(article)}
                           </div>
 
                           {/* Author + link */}
@@ -811,7 +854,7 @@ export default function ArticlesDiscoverySection({
                                 {article.author}
                               </div>
                               <div style={{ fontSize: 11, color: "#aaa" }}>
-                                {readTime(article.description)}
+                                {readTime(getPreviewText(article))}
                               </div>
                             </div>
                             <div
